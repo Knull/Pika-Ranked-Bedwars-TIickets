@@ -1,0 +1,27 @@
+{
+  "name": "pika-ranked-bedwars-tickets",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "postbuild": "tsc-alias",
+    "start": "node ./dist/index.js"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.4.1",
+    "axios": "^1.4.0",
+    "discord.js": "^14.11.0",
+    "dotenv": "^16.3.1",
+    "node-cron": "^3.0.2",
+    "winston": "^3.17.0"
+  },
+  "devDependencies": {
+    "@types/node": "^18.16.19",
+    "@types/node-cron": "^3.0.11",
+    "nodemon": "^3.1.9",
+    "prisma": "^6.4.1",
+    "ts-node": "^10.9.1",
+    "tsc-alias": "^1.8.11",
+    "typescript": "^5.1.3"
+  }
+}
