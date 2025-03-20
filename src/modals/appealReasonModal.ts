@@ -48,33 +48,42 @@ export function showBanAppealModal(interaction: any, banType: 'screenshare_appea
  * Handler for the Mute/Strike Appeal modal submission.
  */
 export async function handleAppealReasonModal(interaction: ModalSubmitInteraction): Promise<void> {
-  const customId = interaction.customId; // e.g. "appeal_reason_modal_appeal_mute"
-  const appealType = customId.split('_').slice(-2).join('_'); // yields "appeal_mute" or "appeal_strike"
+  // Immediately defer the reply so we can later edit it.
+  await interaction.deferReply({ ephemeral: true });
+
+  // Extract the appeal type from the custom ID.
+  // Expected customId format: "appeal_reason_modal_appeal_strike" or "appeal_reason_modal_appeal_mute"
+  const customId = interaction.customId;
+  const appealType = customId.split('_').slice(-2).join('_'); // yields "appeal_strike" or "appeal_mute"
   const reason = interaction.fields.getTextInputValue('reason').trim();
 
   if (reason.split(/\s+/).length < 10) {
-    await interaction.reply({ content: 'Please provide at least 10 words.', ephemeral: true });
+    await interaction.editReply({ content: 'Please provide at least 10 words.' });
     return;
   }
 
   const ticketType = appealType === 'appeal_mute' ? 'Mute Appeal' : 'Strike Appeal';
-  // Create the ticket channel using the provided reason in a code block.
-  await createTicketChannel(interaction, ticketType, { title: ticketType, description: reason });
+
+  // Create the ticket channel.
+  // Pass "true" so that createTicketChannel ensures the interaction is deferred.
+  await createTicketChannel(interaction, ticketType, { title: ticketType, description: reason }, true);
 }
 
 /**
  * Handler for the Ban Appeal modal submission.
  */
 export async function handleBanAppealModal(interaction: ModalSubmitInteraction): Promise<void> {
+  // Immediately defer the reply.
+  await interaction.deferReply({ ephemeral: true });
+
   const customId = interaction.customId; // e.g. "appeal_ban_modal_screenshare_appeal"
   const banType = customId.replace('appeal_ban_modal_', '');
   const reason = interaction.fields.getTextInputValue('reason').trim();
 
   if (reason.split(/\s+/).length < 10) {
-    await interaction.reply({ content: 'Please provide at least 10 words.', ephemeral: true });
+    await interaction.editReply({ content: 'Please provide at least 10 words.' });
     return;
   }
   
-  // For both screenshare and strike ban appeals, use the same ticket type.
-  await createTicketChannel(interaction, 'Ban Appeal', { title: 'Ban Appeal', description: reason, banType });
+  await createTicketChannel(interaction, 'Ban Appeal', { title: 'Ban Appeal', description: reason, banType }, true);
 }

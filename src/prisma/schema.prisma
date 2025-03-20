@@ -42,3 +42,13 @@ model PlayerProfile {
   friends       Json?
   createdAt     DateTime @default(now())
 }
+
+model TicketConfig {
+  id                    Int      @id @default(autoincrement())
+  ticketType            String   @unique
+  permissions           Json?
+  allowCustomInstructions     Boolean @default(false)
+  useCustomInstructions   Boolean @default(false)
+  instructions          String?
+  previewTitle          String?
+}

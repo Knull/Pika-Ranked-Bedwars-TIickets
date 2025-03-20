@@ -18,7 +18,7 @@ export function showAppealAltModal(interaction) {
 }
 // Handle the alt appeal modal submission (uses ModalSubmitInteraction).
 export async function handleAppealAltModal(interaction) {
-    // Defer reply immediately.
+    // Immediately defer the reply so the modal processing doesn't hang.
     await interaction.deferReply({ ephemeral: true });
     const ign = interaction.fields.getTextInputValue('ign');
     try {
@@ -28,7 +28,7 @@ export async function handleAppealAltModal(interaction) {
             const embed = new EmbedBuilder()
                 .setColor(0xff0000)
                 .setDescription(`> The player \`${ign}\` does not exist on Pika-Bedwars servers.\n- Enter a valid IGN please.`);
-            await interaction.followUp({ embeds: [embed], ephemeral: true });
+            await interaction.editReply({ embeds: [embed] });
             return;
         }
         // Upsert the player's profile data.
@@ -57,19 +57,19 @@ export async function handleAppealAltModal(interaction) {
             "2. Explain how you found out about Pika Ranked Bedwars.\n" +
             "3. If your account is less than 30 days old, explain why.\n" +
             "4. If this is a new account of yours, tell us what happened to your previous account (or why you switched accounts)";
-        // Create the ticket channel in the appeals category.
-        // Pass shouldDefer = false because we already deferred here.
-        const ticketChannel = await createTicketChannel(interaction, "Appeal", { title: "Ticket Instructions 👇", description: instructions }, false);
-        // Call handlePlayerInfo to post player stats in the ticket channel.
+        // Create the ticket channel in the appeals category (no additional deferral needed).
+        const ticketChannel = await createTicketChannel(interaction, "Appeal", { title: "Ticket Instructions \uD83D\uDC47", description: instructions }, 
+        /* shouldDefer = */ false);
+        // Immediately send the player info embed (without delay) into the new ticket channel.
         await handlePlayerInfo({ channel: ticketChannel, user: interaction.user, member: interaction.member, guild: interaction.guild }, interaction.client);
-        // Follow up with a confirmation.
-        await interaction.followUp({ content: `Your alt appeal ticket has been created: <#${ticketChannel.id}>`, ephemeral: true });
+        // Finish by editing the deferred reply to confirm ticket creation.
+        await interaction.editReply({ content: `Your alt appeal ticket has been created: <#${ticketChannel.id}>` });
     }
     catch (error) {
         console.error('Error in alt appeal:', error);
         const embed = new EmbedBuilder()
             .setColor(0xff0000)
             .setDescription(`> The player \`${ign}\` does not exist on Pika-Bedwars servers.\n- Enter a valid IGN please.`);
-        await interaction.followUp({ embeds: [embed], ephemeral: true });
+        await interaction.editReply({ embeds: [embed] });
     }
 }

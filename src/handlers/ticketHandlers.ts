@@ -15,7 +15,8 @@ import {
   OverwriteResolvable,
   ButtonInteraction,
   PermissionsBitField, 
-  OverwriteType
+  OverwriteType,
+  InteractionType
 } from 'discord.js';
 import config from '../config/config.js';
 import prisma from '../utils/database.js';
@@ -49,14 +50,12 @@ export async function setupTicketSystem(client: Client): Promise<void> {
           '- **<:general:1298227239069945888> General ➤** Need help? Get assistance here.\n' +
           '- **⚖️ Appeal ➤** Appeal a ban or mute here.\n' +
           '- **🛒 Store ➤** Get assistance with store-related purchases.\n' +
-          '- **👮 Staff Report ➤** Report a staff member here.\n' +
           '- **<a:partnership:1298227428866527285> Partnership ➤** Apply to be a server partner here.'
         );
       const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
         new ButtonBuilder().setCustomId('create_general').setStyle(ButtonStyle.Secondary).setEmoji('<:general:1298227239069945888>'),
         new ButtonBuilder().setCustomId('create_appeal').setStyle(ButtonStyle.Secondary).setEmoji('⚖️'),
         new ButtonBuilder().setCustomId('create_store').setStyle(ButtonStyle.Secondary).setEmoji('🛒'),
-        new ButtonBuilder().setCustomId('create_staff_report').setStyle(ButtonStyle.Secondary).setEmoji('👮'),
         new ButtonBuilder().setCustomId('create_partnership').setStyle(ButtonStyle.Secondary).setEmoji('<a:partnership:1298227428866527285>')
       );
       await ticketsChannel.send({ embeds: [embed], components: [row] });
@@ -77,151 +76,169 @@ export async function createTicketChannel(
 ): Promise<TextChannel> {
   const { guild, user } = interaction;
   if (!guild) {
-    if (shouldDefer) {
+    if (shouldDefer && !interaction.deferred) {
       try {
         await interaction.reply({ content: 'Guild not found', ephemeral: true });
       } catch (e) {}
     }
     throw new Error('Guild not found');
   }
-  try {
-    // Defer reply if not already done
-    if (shouldDefer && !interaction.deferred) {
-      try {
-        await interaction.deferReply({ ephemeral: true });
-      } catch (e) {
-        console.error('Error deferring reply:', e);
-      }
-    }
-    const openTickets = await prisma.ticket.findMany({ where: { userId: user.id, status: 'open' } });
-    if (openTickets.length >= 2) {
-      try {
-        if (interaction.deferred || interaction.replied) {
-          await interaction.followUp({
-            content: 'You already have 2 open tickets. Please continue in one of your existing ticket channels.',
-            ephemeral: true
-          });
-        } else {
-          await interaction.reply({
-            content: 'You already have 2 open tickets. Please continue in one of your existing ticket channels.',
-            ephemeral: true
-          });
-        }
-      } catch (e) {
-        console.error('Error replying ticket limit:', e);
-      }
-      throw new Error('Ticket limit reached');
-    }
-    const settings = await prisma.ticketSettings.findUnique({ where: { id: 1 } });
-    let ticketCounter = settings?.ticketCounter || 1;
-    const prefix = '┃';
-    const username = user.username.split(/[\s\W_]+/)[0] || user.username;
-    const ticketChannelName = `${ticketCounter}${prefix}${username}`;
-    
-    let permissionOverwrites = getPermissionOverwrites(guild, user.id, ticketType);
-    
-    if (ticketType === 'Ban Appeal' && data.banType === 'screenshare_appeal') {
-      permissionOverwrites.push(
-        {
-          id: config.SSAppealTeamRoleId,
-          allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages],
-          type: OverwriteType.Role
-        },
-        {
-          id: config.adminRoleId,
-          allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages],
-          type: OverwriteType.Role
-        }
-      );
-    }
-    
-    const parentCategoryId = getCategoryId(ticketType);
-    if (!parentCategoryId) throw new Error(`Parent category not set for ${ticketType}`);
-    
-    const channelCreated = await guild.channels.create({
-      name: ticketChannelName,
-      type: 0, // GuildText
-      parent: parentCategoryId,
-      permissionOverwrites,
-      topic: `[${ticketType}] Ticket for ${user.username}`
-    });
-    const ticketChannel = channelCreated as TextChannel;
-    
-    // Send welcome message first.
-    const welcomeMessage = `Hey <@${user.id}> || <@&${config.SSAppealTeamRoleId}> ||👋!\n\`\`\`Please wait patiently for staff to reply. If no one responds, you may ping staff. Thanks!\`\`\``;
-    await ticketChannel.send(welcomeMessage);
-    
-    // Build embed based on ticketType.
-    let embed = new EmbedBuilder()
-      .setColor(0x0099FF)
-      .setAuthor({ name: `${ticketType} Ticket`, iconURL: user.displayAvatarURL() });
-      
-    if (ticketType === 'Store') {
-      embed
-        .setTitle('Store Purchase')
-        .setDescription(
-          "```Once you're done selecting a product, please describe what payment method you would like to use for the purchase. Feel free to ask any questions!```"
-        );
-    } else {
-      embed.setTitle(data.title).setDescription(`\`\`\`${data.description}\`\`\``);
-    }
-    
-    const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder().setCustomId('close_ticket').setLabel('Close').setStyle(ButtonStyle.Danger).setEmoji('🔒'),
-      new ButtonBuilder().setCustomId('claim_ticket').setLabel('Claim').setStyle(ButtonStyle.Success).setEmoji('<a:check:1256329093679681608>')
-    );
-    
-    const ticketMsg = await ticketChannel.send({ embeds: [embed], components: [row.toJSON()] });
-    
-    if (ticketType === 'Store') {
-      const storeEmbed = new EmbedBuilder()
-        .setColor(0xa020f0)
-        .setDescription(
-          `## <a:arrow:1302929623969042543> Check out our products at <#${config.storeChannelID}> <a:Exclamation_3:1345056006568411259>`
-        );
-      await ticketChannel.send({ embeds: [storeEmbed] });
-    }
-    
-    await prisma.ticket.create({
-      data: {
-        ticketNumber: ticketCounter,
-        ticketType,
-        status: 'open',
-        channelId: ticketChannel.id,
-        userId: user.id,
-        ticketMessageId: ticketMsg.id,
-        reason: data.description
-      }
-    });
-    await prisma.ticketSettings.update({
-      where: { id: 1 },
-      data: { ticketCounter: ticketCounter + 1 }
-    });
-    
-    if (shouldDefer) {
-      try {
-        await interaction.editReply({
-          content: `Your ticket has been opened. Head over to <#${ticketChannel.id}> to continue.`
-        });
-      } catch (e) {
-        console.error('Error editing reply:', e);
-      }
-    }
-    return ticketChannel;
-  } catch (error) {
-    console.error('Failed to create ticket channel:', error);
-    if (shouldDefer) {
-      try {
-        await interaction.editReply({ content: 'There was an error creating your ticket. Please try again later.' });
-      } catch (e) {
-        console.error('Error editing reply on failure:', e);
-      }
-    }
-    throw error;
+
+  // Always defer if not already deferred.
+  if (shouldDefer && !interaction.deferred) {
+    await interaction.deferReply({ flags: 64 });
   }
+
+  // Fetch ticket counter settings.
+  const settings = await prisma.ticketSettings.findUnique({ where: { id: 1 } });
+  let ticketCounter = settings?.ticketCounter || 1;
+  const prefix = '┃';
+  const username = user.username.split(/[\s\W_]+/)[0] || user.username;
+  const ticketChannelName = `${ticketCounter}${prefix}${username}`;
+
+  // Get base permission overwrites.
+  let permissionOverwrites = getPermissionOverwrites(guild, user.id, ticketType);
+  if (ticketType === 'Ban Appeal' && data.banType === 'screenshare_appeal') {
+    permissionOverwrites.push(
+      {
+        id: config.SSAppealTeamRoleId,
+        allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages],
+        type: OverwriteType.Role
+      },
+      {
+        id: config.adminRoleId,
+        allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages],
+        type: OverwriteType.Role
+      }
+    );
+  }
+
+  // Fetch configuration from the database for this ticket type.
+  const configEntry = await prisma.ticketConfig.findUnique({ where: { ticketType } });
+  if (configEntry?.permissions && Array.isArray(configEntry.permissions)) {
+    permissionOverwrites = configEntry.permissions as unknown as OverwriteResolvable[];
+  }
+
+  const parentCategoryId = getCategoryId(ticketType);
+  if (!parentCategoryId) throw new Error(`Parent category not set for ${ticketType}`);
+
+  const channelCreated = await guild.channels.create({
+    name: ticketChannelName,
+    type: 0, // GuildText
+    parent: parentCategoryId,
+    permissionOverwrites,
+    topic: `[${ticketType}] Ticket for ${user.username}`
+  });
+  const ticketChannel = channelCreated as TextChannel;
+
+  // Send a welcome message.
+  const welcomeMessage = `Hey <@${user.id}> 👋!\n\`\`\`Please wait patiently for staff to reply. If no one responds, you may ping staff. Thanks!\`\`\``;
+  await ticketChannel.send(welcomeMessage);
+
+  // Build the main ticket embed.
+  let embed = new EmbedBuilder()
+    .setColor(0x0099FF)
+    .setAuthor({ name: `${ticketType} Ticket`, iconURL: user.displayAvatarURL() });
+
+  // Allowed types for custom instructions in the main embed.
+  // For Partnership tickets, we don't append instructions in the main embed.
+  const allowedForMain = ['Store', 'Alt Appeal'];
+
+  if (allowedForMain.includes(ticketType)) {
+    // Use custom instructions if enabled; otherwise, fall back to a default.
+    const defaultInstr = ticketType === 'Store'
+      ? "Once you're done selecting a product, please describe your payment method and any questions you have."
+      : "Please provide your appeal details.";
+    const instructionsToUse =
+      configEntry && configEntry.useCustomInstructions && configEntry.instructions
+        ? configEntry.instructions
+        : defaultInstr;
+    embed.setTitle(ticketType === 'Store' ? 'Store Purchase' : data.title)
+         .setDescription(`\`\`\`${data.description}\`\`\`\n\n**Instructions:** ${instructionsToUse}`);
+  } else if (ticketType === 'Partnership') {
+    // For Partnership tickets, the main embed does not include instructions.
+    embed.setTitle(data.title)
+         .setDescription(`\`\`\`${data.description}\`\`\``);
+  } else {
+    // For all other ticket types, simply use the provided description.
+    embed.setTitle(data.title)
+         .setDescription(`\`\`\`${data.description}\`\`\``);
+  }
+
+  const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder().setCustomId('close_ticket').setLabel('Close').setStyle(ButtonStyle.Danger).setEmoji('🔒'),
+    new ButtonBuilder().setCustomId('claim_ticket').setLabel('Claim').setStyle(ButtonStyle.Success).setEmoji('<a:check:1256329093679681608>')
+  );
+
+  const ticketMsg = await ticketChannel.send({ embeds: [embed], components: [row] });
+
+  // Send additional embed if ticketType is Partnership.
+  if (ticketType === 'Partnership') {
+    // Use custom partnership info if enabled; otherwise use a default.
+    const defaultPartnershipInfo =
+      `### PRBW is no longer doing free partnerships.\n\n` +
+      `Server must be Minecraft related (exceptions can be made, e.g., for performance enhancing softwares).\n` +
+      `- **Server must have 1,000+ members. (In this case, we'll do a NoPing4Ping partnership, where you have to ping for our advertisement but we won't)**\n` +
+      `- **For a Ping4Ping or a partnership with a smaller server, the prices are given below:**\n` +
+      "```arm\n" +
+      "1. Simple Ping4Ping partnership, if your server is above 1000 members will cost $15 USD.\n" +
+      "2. A Ping4Ping partnership with smaller servers may cost up to $20 USD.\n" +
+      "3. A Ping4Ping CAN BE FREE for servers with 1.25x the number of members of PRBW.\n" +
+      "4. A simple partnership with no pings for servers of any member count will cost $10 USD.\n" +
+      "```";
+      
+    const partnershipInfo =
+      configEntry && configEntry.useCustomInstructions && configEntry.instructions
+        ? configEntry.instructions
+        : defaultPartnershipInfo;
+      
+    const partnershipEmbed = new EmbedBuilder()
+      .setColor(0xff0000)
+      .setAuthor({
+        name: 'Pinned Message',
+        iconURL: 'https://cdn.discordapp.com/emojis/1348557777785716756.webp?size=44'
+      })
+      .setTitle('Partnership Requirements')
+      .setDescription(partnershipInfo);
+    await ticketChannel.send({ embeds: [partnershipEmbed] });
+  }
+
+  // Insert ticket info into the database.
+  // For allowed types for main embed, use the final instructions; for Partnership, we use just the description.
+  const finalReason = allowedForMain.includes(ticketType)
+    ? (configEntry && configEntry.useCustomInstructions && configEntry.instructions
+         ? configEntry.instructions
+         : (ticketType === 'Store'
+            ? "Once you're done selecting a product, please describe your payment method and any questions you have."
+            : data.description))
+    : data.description;
+
+  await prisma.ticket.create({
+    data: {
+      ticketNumber: ticketCounter,
+      ticketType,
+      status: 'open',
+      channelId: ticketChannel.id,
+      userId: user.id,
+      ticketMessageId: ticketMsg.id,
+      reason: ticketType === 'Partnership' ? data.description : finalReason
+    }
+  });
+  await prisma.ticketSettings.update({
+    where: { id: 1 },
+    data: { ticketCounter: ticketCounter + 1 }
+  });
+
+  // Edit the deferred reply to confirm ticket creation.
+  if (shouldDefer) {
+    try {
+      await interaction.editReply({ content: `Your ticket has been opened. Head over to <#${ticketChannel.id}> to continue.` });
+    } catch (e) {
+      console.error('Error editing reply:', e);
+    }
+  }
+  return ticketChannel;
 }
-
-
 
 
 // ------------------------------------------------------------------
@@ -302,7 +319,6 @@ export async function handleCloseTicket(interaction: ButtonInteraction): Promise
 }
 
 
-
 export async function handlePlayerInfo(interaction: any, client: Client): Promise<void> {
   const ticket = await prisma.ticket.findFirst({ where: { channelId: interaction.channel.id } });
   if (!ticket) {
@@ -330,13 +346,12 @@ export async function handlePlayerInfo(interaction: any, client: Client): Promis
   const embed = new EmbedBuilder()
     .setColor(0x0099FF)
     .setDescription(
-      `# [🔍 Player Information | ${profile.ign}](https://stats.pika-network.net/player/${profile.ign})\n` +
+      `# [🎯 Player Information | ${profile.ign}](https://stats.pika-network.net/player/${profile.ign})\n` +
       `- <a:last_seen:1347936608254427229> **Last Seen:** <t:${lastSeenTs}:R>\n` +
-      `> 📊 **Rank Details:** Level: \` ${(profile.rankInfo as any)?.level || 'N/A'} \` <:divider:1289576524550504458> experience: \` ${(profile.rankInfo as any)?.experience || 'N/A'} \` <:divider:1289576524550504458> percentage: \` ${(profile.rankInfo as any)?.percentage || 'N/A'} \`\n` +
-      `- 📅 **Join Date:** <t:${joinDateTs}:F>\n` +
-      `> 🎂 **Account Created:** <t:${accountCreatedTs}:R>\n` +
+      `> 🎯 **Rank Details:** Level: \` ${(profile.rankInfo as any)?.level || 'N/A'} \` <:divider:1289576524550504458> experience: \` ${(profile.rankInfo as any)?.experience || 'N/A'} \` <:divider:1289576524550504458> percentage: \` ${(profile.rankInfo as any)?.percentage || 'N/A'} \`\n` +
+      `- 🕒 **Join Date:** <t:${joinDateTs}:F>\n` +
+      `> 📆 **Account Created:** <t:${accountCreatedTs}:R>\n` +
       `- **Clan Name:** ${profile.clanName || 'N/A'}`
-
     );
 
   let friends: string[] = (profile.friends as string[]) || [];
@@ -355,7 +370,6 @@ export async function handlePlayerInfo(interaction: any, client: Client): Promis
     embed.addFields({ name: 'Friend List', value: 'None', inline: false });
   }
 
-  // Attempt to fetch the head image using mc-heads.net
   let headURL = `https://mc-heads.net/avatar/${profile.ign}/overlay`;
   try {
     const res = await axios.head(headURL);
@@ -367,17 +381,14 @@ export async function handlePlayerInfo(interaction: any, client: Client): Promis
   }
   embed.setThumbnail(headURL);
 
-  // Send the embed in the channel and attempt to pin it after 10 seconds.
-  setTimeout(async () => {
-    try {
-      const msg = await interaction.channel.send({ embeds: [embed] });
-      await msg.pin();
-    } catch (error) {
-      console.error('Failed to pin message:', error);
-    }
-  }, 10000);
+  // Send the embed immediately (without delay) and pin it.
+  try {
+    const msg = await interaction.channel.send({ embeds: [embed] });
+    await msg.pin();
+  } catch (error) {
+    console.error('Failed to pin message:', error);
+  }
 }
-
 
 
 export async function handleAddCommand(interaction: CommandInteraction): Promise<void> {
