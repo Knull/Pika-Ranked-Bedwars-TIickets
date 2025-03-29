@@ -24,6 +24,9 @@ model Ticket {
   lastMessageAt   DateTime?
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
+  added_user      Json?
+  added_roles     Json?
+  duration        Int?
 }
 
 model TicketSettings {

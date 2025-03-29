@@ -1,4 +1,4 @@
-import { ChatInputCommandInteraction, ActionRowBuilder, StringSelectMenuBuilder } from 'discord.js';
+import { ChatInputCommandInteraction, ActionRowBuilder, RoleSelectMenuBuilder } from 'discord.js';
 import prisma from '../utils/database.js';
 
 export async function handleTicketConfigPermissions(interaction: ChatInputCommandInteraction): Promise<void> {
@@ -9,18 +9,20 @@ export async function handleTicketConfigPermissions(interaction: ChatInputComman
     return;
   }
 
-  // Fetch all roles in the guild.
-  const roles = await interaction.guild.roles.fetch();
-  const roleOptions = roles.map(role => ({
-    label: role.name,
-    value: role.id,
-  }));
-
-  const selectMenu = new StringSelectMenuBuilder()
+  // Use the built-in RoleSelect menu (available in discord.js v14).
+  const roleSelect = new RoleSelectMenuBuilder()
     .setCustomId(`config_permissions_${ticketType}`)
     .setPlaceholder(`Select roles for ${ticketType} tickets`)
-    .addOptions(roleOptions);
+    .setMinValues(0)
+    .setMaxValues(25); // Discord allows up to 25 roles per select menu.
 
-  const row = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(selectMenu);
-  await interaction.reply({ content: `Configure permissions for ${ticketType} tickets:`, components: [row], ephemeral: true });
+  const row = new ActionRowBuilder<RoleSelectMenuBuilder>().addComponents(roleSelect);
+
+  const embed = {
+    title: "Permissions Config",
+    description: `- Ticket Type: \`${ticketType}\`\n> Use the dropdown below to adjust permissions.`,
+  };
+
+  await interaction.reply({ embeds: [embed], components: [row], ephemeral: true });
 }
+

@@ -4,13 +4,12 @@ import { ExtendedClient, CommandModule } from './types/ExtendedClient.js';
 import config from './config/config.js';
 import prisma from './utils/database.js';  // Import your Prisma client
 
-// Import your command and other handlers…
 import ticketConfigCommand from './slash_commands/ticket-config.js';
 import { setupTicketSystem } from './handlers/ticketHandlers.js';
 import { startAutoCloseManager } from './handlers/autoCloseManager.js';
 import { registerInteractions } from './interactions/interactionCreate.js';
 import { registerCommands } from './commands/commandHandler.js';
-
+import { populateTicketConfigs } from './utils/populateTicketConfigs.js';
 // 1. Initialize the client as ExtendedClient
 const client: ExtendedClient = new Client({
   intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages],
@@ -37,7 +36,14 @@ client.once('ready', async () => {
     update: {},
     create: { ticketCounter: 1 }
   });
-
+  // /*
+  try {
+    await populateTicketConfigs();
+    console.log('TicketConfig table populated with default records.');
+  } catch (error) {
+    console.error('Error populating TicketConfig table:', error);
+  }
+  // */
   // Register slash commands from slash_commands folder
   await registerCommands(client);
 

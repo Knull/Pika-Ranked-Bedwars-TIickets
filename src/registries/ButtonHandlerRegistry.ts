@@ -1,4 +1,4 @@
-import { ButtonInteraction, Client } from 'discord.js';
+import { ButtonInteraction, Client, PermissionFlagsBits, OverwriteType, ModalBuilder, TextInputBuilder, ActionRowBuilder, TextInputStyle } from 'discord.js';
 import prisma from '../utils/database.js';
 import { showPartnershipModal } from '../modals/partnershipModal.js';
 import { handleCreateGeneralTicket } from '../handlers/createTicketHandlers.js';
@@ -6,9 +6,14 @@ import { createTicketChannel } from '../handlers/ticketHandlers.js';
 import { showInitialAppealDropdown } from '../dropdowns/appealDropdown.js';
 import winston from 'winston';
 import { instructionsCache } from '../utils/instructionsCache.js';
+import { getPermissionOverwrites } from '../utils/discordUtils.js';
+import { confirmTicketConfigPermissions, cancelTicketConfigPermissions } from '../handlers/ticketPermissionHandlers.js'
+import { handleCloseTicket, handleReopenTicket, handleClaimTicket, handleDeleteTicketManual, handleDeleteTicketAuto, handleAdvancedTicketLog } from '../handlers/ticketHandlers.js';
+import config from '../config/config.js';
 const logger = winston.createLogger({
   transports: [new winston.transports.Console()]
 });
+import { RoleSelectCache } from '../utils/roleSelectCache.js';
 
 async function checkTicketLimit(interaction: ButtonInteraction): Promise<boolean> {
   try {
@@ -158,32 +163,57 @@ export const ButtonHandlerRegistry: { [key: string]: (interaction: ButtonInterac
   
   // Other handlers such as 'close_ticket', 'claim_ticket', etc.
   'close_ticket': async (interaction, client) => {
-    logger.info(`Button pressed: ${interaction.customId}`);
-    try {
-      const { handleCloseTicket } = await import('../handlers/ticketHandlers.js');
-      await handleCloseTicket(interaction);
-    } catch (error) {
-      console.error("Error in close_ticket handler:", error);
-    }
+    await handleCloseTicket(interaction);
   },
 
+  'delete_ticket_manual': async (interaction, client) => {
+    const memberRoles = interaction.member?.roles;
+    let hasStaff = false;
+    if (Array.isArray(memberRoles)) {
+      hasStaff = memberRoles.includes(config.staffRoleId);
+    } else if (memberRoles && 'cache' in memberRoles) {
+      hasStaff = memberRoles.cache.has(config.staffRoleId);
+    }
+    if (!hasStaff) {
+      await interaction.reply({ content: 'You are not authorized to delete tickets.', ephemeral: true });
+      return;
+    }
+    const modal = new ModalBuilder()
+      .setCustomId('delete_ticket_manual')
+      .setTitle('Delete Ticket Reason');
+    const reasonInput = new TextInputBuilder()
+      .setCustomId('reason')
+      .setLabel('Please provide a reason:')
+      .setStyle(TextInputStyle.Paragraph)
+      .setRequired(true);
+    modal.addComponents(new ActionRowBuilder<TextInputBuilder>().addComponents(reasonInput));
+    await interaction.showModal(modal);
+  },
   'claim_ticket': async (interaction, client) => {
-    logger.info(`Button pressed: ${interaction.customId}`);
-    try {
-      const { promptReason } = await import('../handlers/ticketHandlers.js');
-      await promptReason(client, interaction, 'claim_ticket');
-    } catch (error) {
-      console.error("Error in claim_ticket handler:", error);
+    const memberRoles = interaction.member?.roles;
+    let hasStaff = false;
+    if (Array.isArray(memberRoles)) {
+      hasStaff = memberRoles.includes(config.staffRoleId);
+    } else if (memberRoles && 'cache' in memberRoles) {
+      hasStaff = memberRoles.cache.has(config.staffRoleId);
     }
+    if (!hasStaff) {
+      await interaction.reply({ content: 'You are not d to claim tickets.', ephemeral: true });
+      return;
+    }
+    const modal = new ModalBuilder()
+      .setCustomId('claim_ticket')
+      .setTitle('Claim Ticket Reason');
+    const reasonInput = new TextInputBuilder()
+      .setCustomId('reason')
+      .setLabel('Please provide a reason:')
+      .setStyle(TextInputStyle.Paragraph)
+      .setRequired(true);
+    modal.addComponents(new ActionRowBuilder<TextInputBuilder>().addComponents(reasonInput));
+    await interaction.showModal(modal);
   },
-
-  'reopen_ticket': async (interaction, client) => {
-    logger.info(`Button pressed: ${interaction.customId}`);
-    await interaction.reply({ content: 'Reopen functionality not yet implemented.', flags: 64 });
-  },
-  'delete_ticket': async (interaction, client) => {
-    logger.info(`Button pressed: ${interaction.customId}`);
-    await interaction.reply({ content: 'Delete functionality not yet implemented.', flags: 64 });
+  'delete_ticket_auto': async (interaction, client) => {
+    await handleDeleteTicketAuto(interaction);
   },
   'confirm_instructions_': async (interaction: ButtonInteraction, client: Client) => {
     const ticketType = interaction.customId.replace('confirm_instructions_', '');
@@ -241,4 +271,9 @@ export const ButtonHandlerRegistry: { [key: string]: (interaction: ButtonInterac
       components: []
     });
   },
+  'confirm_permissions_': confirmTicketConfigPermissions,
+  'cancel_permissions_': cancelTicketConfigPermissions,
+  'advanced_ticketLog': async (interaction, client) => {
+    await handleAdvancedTicketLog(interaction);
+  }
 };

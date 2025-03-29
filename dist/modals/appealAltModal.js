@@ -1,3 +1,4 @@
+// File: src/modals/appealAltModal.ts
 import { ModalBuilder, TextInputBuilder, ActionRowBuilder, TextInputStyle, EmbedBuilder } from 'discord.js';
 import axios from 'axios';
 import prisma from '../utils/database.js';
@@ -13,12 +14,10 @@ export function showAppealAltModal(interaction) {
         .setStyle(TextInputStyle.Short)
         .setRequired(true);
     modal.addComponents(new ActionRowBuilder().addComponents(ignInput));
-    // This method is valid on a select menu interaction:
     interaction.showModal(modal);
 }
-// Handle the alt appeal modal submission (uses ModalSubmitInteraction).
+// Handle the alt appeal modal submission.
 export async function handleAppealAltModal(interaction) {
-    // Immediately defer the reply so the modal processing doesn't hang.
     await interaction.deferReply({ ephemeral: true });
     const ign = interaction.fields.getTextInputValue('ign');
     try {
@@ -31,7 +30,7 @@ export async function handleAppealAltModal(interaction) {
             await interaction.editReply({ embeds: [embed] });
             return;
         }
-        // Upsert the player's profile data.
+        // Upsert player's profile data.
         await prisma.playerProfile.upsert({
             where: { discordUserId: interaction.user.id },
             update: {
@@ -52,17 +51,15 @@ export async function handleAppealAltModal(interaction) {
                 friends: profile.friends ? profile.friends.map((f) => f.username) : []
             }
         });
-        const instructions = "To prove you are not an alt, do the following:\n" +
-            "1. Send a screenshot of your Discord server list.\n" +
-            "2. Explain how you found out about Pika Ranked Bedwars.\n" +
-            "3. If your account is less than 30 days old, explain why.\n" +
-            "4. If this is a new account of yours, tell us what happened to your previous account (or why you switched accounts)";
-        // Create the ticket channel in the appeals category (no additional deferral needed).
-        const ticketChannel = await createTicketChannel(interaction, "Appeal", { title: "Ticket Instructions \uD83D\uDC47", description: instructions }, 
-        /* shouldDefer = */ false);
-        // Immediately send the player info embed (without delay) into the new ticket channel.
+        // Fetch Alt Appeal instructions from TicketConfig.
+        const configEntry = await prisma.ticketConfig.findUnique({ where: { ticketType: "Alt Appeal" } });
+        const instructions = configEntry && configEntry.useCustomInstructions && configEntry.instructions
+            ? configEntry.instructions
+            : "Please provide your appeal details to verify your identity.";
+        // Use "Alt Appeal" as the ticket type.
+        const ticketChannel = await createTicketChannel(interaction, "Alt Appeal", { title: "Alt Appeal Ticket", description: instructions }, false);
+        // Send player info embed.
         await handlePlayerInfo({ channel: ticketChannel, user: interaction.user, member: interaction.member, guild: interaction.guild }, interaction.client);
-        // Finish by editing the deferred reply to confirm ticket creation.
         await interaction.editReply({ content: `Your alt appeal ticket has been created: <#${ticketChannel.id}>` });
     }
     catch (error) {

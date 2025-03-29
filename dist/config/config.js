@@ -23,5 +23,7 @@ export default {
     storeChannelID: '1292050904622563412',
     SSAppealTeamRoleId: '1347894866973032470',
     clientId: '1221709268164804659',
-    guildId: '1218431496612876388'
+    guildId: '1218431496612876388',
+    transcriptChannel1: '1345036777492058215',
+    transcriptChannel2: '1345036791094448212'
 };

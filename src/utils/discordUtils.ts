@@ -1,69 +1,210 @@
-import {
-  Guild,
-  OverwriteData,
-  OverwriteType,
-  PermissionFlagsBits
-} from 'discord.js';
+import { Guild, OverwriteData, OverwriteType, PermissionFlagsBits } from 'discord.js';
 import config from '../config/config.js';
+
+function toBigInt(value: any): bigint {
+  return typeof value === 'bigint' ? value : BigInt(value);
+}
 
 export function getPermissionOverwrites(
   guild: Guild,
   userId: string,
   ticketType: string
 ): OverwriteData[] {
-  const overwrites: OverwriteData[] = [
+  const everyoneRole = guild.roles.cache.get(guild.roles.everyone.id);
+  if (!everyoneRole) {
+    throw new Error("Everyone role not found");
+  }
+
+  const defaults: OverwriteData[] = [
     {
-      id: guild.roles.everyone.id,
-      deny: [PermissionFlagsBits.ViewChannel],
-      type: OverwriteType.Role
+      id: everyoneRole.id,
+      deny: [toBigInt(PermissionFlagsBits.ViewChannel)],
+      type: OverwriteType.Role,
     },
     {
       id: userId,
-      allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages],
-      type: OverwriteType.Member
-    }
+      allow: [
+        toBigInt(PermissionFlagsBits.ViewChannel),
+        toBigInt(PermissionFlagsBits.SendMessages)
+      ],
+      type: OverwriteType.Member,
+    },
   ];
 
   if (ticketType === 'General') {
-    // Allow staff to view and send messages.
-    overwrites.push({
-      id: config.staffRoleId,
-      allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages],
-      type: OverwriteType.Role
-    });
+    const staffRole = guild.roles.cache.get(config.staffRoleId);
+    if (staffRole) {
+      defaults.push({
+        id: staffRole.id,
+        allow: [
+          toBigInt(PermissionFlagsBits.ViewChannel),
+          toBigInt(PermissionFlagsBits.SendMessages)
+        ],
+        type: OverwriteType.Role,
+      });
+    }
   } else if (ticketType === 'Store') {
-    // Only allow admins for store tickets.
-    overwrites.push({
-      id: config.adminRoleId,
-      allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages],
-      type: OverwriteType.Role
-    });
+    const adminRole = guild.roles.cache.get(config.adminRoleId);
+    if (adminRole) {
+      defaults.push({
+        id: adminRole.id,
+        allow: [
+          toBigInt(PermissionFlagsBits.ViewChannel),
+          toBigInt(PermissionFlagsBits.SendMessages)
+        ],
+        type: OverwriteType.Role,
+      });
+    }
   } else if (['Staff Report', 'Partnership'].includes(ticketType)) {
-    // Restrict access by denying these roles.
-    overwrites.push({
-      id: config.adminRoleId,
-      deny: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages],
-      type: OverwriteType.Role
-    });
+    const adminRole = guild.roles.cache.get(config.adminRoleId);
+    if (adminRole) {
+      defaults.push({
+        id: adminRole.id,
+        deny: [
+          toBigInt(PermissionFlagsBits.ViewChannel),
+          toBigInt(PermissionFlagsBits.SendMessages)
+        ],
+        type: OverwriteType.Role,
+      });
+    }
   } else if (ticketType.endsWith('Appeal')) {
-    // For any appeal ticket (Mute Appeal, Strike Appeal, Ban Appeal, etc.)
-    // Deny staff role and allow admin role.
-    overwrites.push(
-      {
-        id: config.staffRoleId,
-        deny: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages],
-        type: OverwriteType.Role
-      },
-      {
-        id: config.adminRoleId,
-        allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages],
-        type: OverwriteType.Role
-      }
-    );
+    const staffRole = guild.roles.cache.get(config.staffRoleId);
+    const adminRole = guild.roles.cache.get(config.adminRoleId);
+    if (staffRole) {
+      defaults.push({
+        id: staffRole.id,
+        deny: [
+          toBigInt(PermissionFlagsBits.ViewChannel),
+          toBigInt(PermissionFlagsBits.SendMessages)
+        ],
+        type: OverwriteType.Role,
+      });
+    }
+    if (adminRole) {
+      defaults.push({
+        id: adminRole.id,
+        allow: [
+          toBigInt(PermissionFlagsBits.ViewChannel),
+          toBigInt(PermissionFlagsBits.SendMessages)
+        ],
+        type: OverwriteType.Role,
+      });
+    }
+  }
+  return defaults;
+}
+
+
+export async function getPermissionOverwritesAsync(
+  guild: Guild,
+  userId: string,
+  ticketType: string
+): Promise<OverwriteData[]> {
+  // Ensure the everyone role is available, converting null to undefined
+  let everyoneRole =
+    guild.roles.cache.get(guild.roles.everyone.id) ??
+    (await guild.roles.fetch(guild.roles.everyone.id)) ??
+    undefined;
+
+  if (!everyoneRole) {
+    throw new Error("Everyone role not found");
   }
 
-  return overwrites;
+  const defaults: OverwriteData[] = [
+    {
+      id: everyoneRole.id,
+      deny: [toBigInt(PermissionFlagsBits.ViewChannel)],
+      type: OverwriteType.Role,
+    },
+    {
+      id: userId,
+      allow: [
+        toBigInt(PermissionFlagsBits.ViewChannel),
+        toBigInt(PermissionFlagsBits.SendMessages)
+      ],
+      type: OverwriteType.Member,
+    },
+  ];
+
+  if (ticketType === 'General') {
+    const staffRole =
+      guild.roles.cache.get(config.staffRoleId) ??
+      (await guild.roles.fetch(config.staffRoleId)) ??
+      undefined;
+    if (staffRole) {
+      defaults.push({
+        id: staffRole.id,
+        allow: [
+          toBigInt(PermissionFlagsBits.ViewChannel),
+          toBigInt(PermissionFlagsBits.SendMessages)
+        ],
+        type: OverwriteType.Role,
+      });
+    }
+  } else if (ticketType === 'Store') {
+    const adminRole =
+      guild.roles.cache.get(config.adminRoleId) ??
+      (await guild.roles.fetch(config.adminRoleId)) ??
+      undefined;
+    if (adminRole) {
+      defaults.push({
+        id: adminRole.id,
+        allow: [
+          toBigInt(PermissionFlagsBits.ViewChannel),
+          toBigInt(PermissionFlagsBits.SendMessages)
+        ],
+        type: OverwriteType.Role,
+      });
+    }
+  } else if (['Staff Report', 'Partnership'].includes(ticketType)) {
+    const adminRole =
+      guild.roles.cache.get(config.adminRoleId) ??
+      (await guild.roles.fetch(config.adminRoleId)) ??
+      undefined;
+    if (adminRole) {
+      defaults.push({
+        id: adminRole.id,
+        deny: [
+          toBigInt(PermissionFlagsBits.ViewChannel),
+          toBigInt(PermissionFlagsBits.SendMessages)
+        ],
+        type: OverwriteType.Role,
+      });
+    }
+  } else if (ticketType.endsWith('Appeal')) {
+    const staffRole =
+      guild.roles.cache.get(config.staffRoleId) ??
+      (await guild.roles.fetch(config.staffRoleId)) ??
+      undefined;
+    const adminRole =
+      guild.roles.cache.get(config.adminRoleId) ??
+      (await guild.roles.fetch(config.adminRoleId)) ??
+      undefined;
+    if (staffRole) {
+      defaults.push({
+        id: staffRole.id,
+        deny: [
+          toBigInt(PermissionFlagsBits.ViewChannel),
+          toBigInt(PermissionFlagsBits.SendMessages)
+        ],
+        type: OverwriteType.Role,
+      });
+    }
+    if (adminRole) {
+      defaults.push({
+        id: adminRole.id,
+        allow: [
+          toBigInt(PermissionFlagsBits.ViewChannel),
+          toBigInt(PermissionFlagsBits.SendMessages)
+        ],
+        type: OverwriteType.Role,
+      });
+    }
+  }
+  return defaults;
 }
+
+
 
 export function getCategoryId(ticketType: string, isArchived = false): string {
   const categoryMapping: { [key: string]: string } = {
@@ -74,8 +215,5 @@ export function getCategoryId(ticketType: string, isArchived = false): string {
     'Store': isArchived ? config.archivedStoreTicketsCategoryId : config.storeTicketsCategoryId,
   };
 
-  return (
-    categoryMapping[ticketType] ??
-    (isArchived ? config.archivedTicketsCategoryId : config.ticketsCategoryId)
-  );
+  return categoryMapping[ticketType] ?? (isArchived ? config.archivedTicketsCategoryId : config.ticketsCategoryId);
 }

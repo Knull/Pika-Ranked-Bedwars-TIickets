@@ -1,5 +1,7 @@
+// File: src/modals/partnershipModal.ts
 import { ModalBuilder, TextInputBuilder, ActionRowBuilder, TextInputStyle, EmbedBuilder, MessageFlags } from 'discord.js';
 import { createTicketChannel } from '../handlers/ticketHandlers.js';
+import prisma from '../utils/database.js';
 export function showPartnershipModal(interaction) {
     const modal = new ModalBuilder()
         .setCustomId('partnership_modal')
@@ -36,7 +38,7 @@ export async function handlePartnershipModal(interaction) {
     Server Name: ${serverName}
     Invite Link: ${inviteLink}
     Reason: ${reason}`);
-    // Validate the invite link using client.fetchInvite.
+    // Validate the invite link.
     let invite;
     try {
         invite = await interaction.client.fetchInvite(inviteLink, { withCounts: true });
@@ -58,13 +60,11 @@ export async function handlePartnershipModal(interaction) {
         await interaction.followUp({ embeds: [errorEmbed], flags: MessageFlags.Ephemeral });
         return;
     }
-    // Use the invite's approximateMemberCount (this may be 0 if not provided)
     let memberCount = inviteData.approximateMemberCount || 0;
     if (memberCount === 0) {
         console.warn("Member count is 0; this may be because the bot is not in the target guild.");
     }
     console.log(`Fetched member count: ${memberCount}`);
-    // Determine eligibility based on member count.
     let eligibilityText = '';
     if (memberCount < 500) {
         eligibilityText = 'Small server partnership';
@@ -76,14 +76,29 @@ export async function handlePartnershipModal(interaction) {
         eligibilityText = 'Eligible for standard partnership options';
     }
     console.log(`Eligibility determined: ${eligibilityText}`);
-    // Create the ticket channel using your existing createTicketChannel logic.
-    const data = {
+    // Fetch partnership instructions from TicketConfig.
+    const configEntry = await prisma.ticketConfig.findUnique({ where: { ticketType: "Partnership" } });
+    const partnershipInstructions = configEntry && configEntry.useCustomInstructions && configEntry.instructions
+        ? configEntry.instructions
+        : `### PRBW is no longer doing free partnerships.
+    
+Server must be Minecraft related (exceptions can be made, e.g., for performance enhancing softwares).
+- **Server must have 1,000+ members. (In this case, we'll do a NoPing4Ping partnership, where you have to ping for our advertisement but we won't)**
+- **For a Ping4Ping or a partnership with a smaller server, the prices are given below:**
+\`\`\`arm
+1. Simple Ping4Ping partnership, if your server is above 1000 members will cost $15 USD.
+2. A Ping4Ping partnership with smaller servers may cost up to $20 USD.
+3. A Ping4Ping CAN BE FREE for servers with 1.25x the number of members of PRBW.
+4. A simple partnership with no pings for servers of any member count will cost $10 USD.
+\`\`\``;
+    // Create the ticket channel.
+    const ticketData = {
         title: 'Partnership Ticket',
-        description: `${reason}`
+        description: `${reason}` // The main embed will use the user-provided description.
     };
     let ticketChannel;
     try {
-        ticketChannel = await createTicketChannel(interaction, 'Partnership', data, false);
+        ticketChannel = await createTicketChannel(interaction, 'Partnership', ticketData, false);
         console.log(`Created ticket channel with ID: ${ticketChannel.id}`);
     }
     catch (error) {
@@ -99,7 +114,7 @@ export async function handlePartnershipModal(interaction) {
         }
         return;
     }
-    // Send a plain-text message with the invite link for staff review.
+    // Send a plain-text message with the invite link.
     try {
         await ticketChannel.send(`Server Invite: ${inviteLink}`);
         console.log("Sent invite link message to ticket channel.");
@@ -107,43 +122,6 @@ export async function handlePartnershipModal(interaction) {
     catch (error) {
         console.error(`Error sending invite link message: ${error}`);
     }
-    // Send an embed with partnership requirements, using "arm" for code block styling.
-    const requirementsEmbed = new EmbedBuilder()
-        .setColor(0xff0000)
-        .setAuthor({
-        name: 'Pinned Message',
-        iconURL: 'https://cdn.discordapp.com/emojis/1348557777785716756.webp?size=44'
-    })
-        .setTitle('Partnership Requirements')
-        .setDescription(`### PRBW is no longer doing free partnerships.\n\n` +
-        `Server must be Minecraft related (exceptions can be made, e.g., for performance enhancing softwares).\n` +
-        `- **Server must have 1,000+ members. (In this case, we'll do a NoPing4Ping partnership, where you have to ping for our advertisement but we won't)**\n` +
-        `- **For a Ping4Ping or a partnership with a smaller server, the prices are given below:**\n` +
-        "```arm\n" +
-        "1. Simple Ping4Ping partnership, if your server is above 1000 members will cost $15 USD.\n" +
-        "2. A Ping4Ping partnership with smaller servers may cost up to $20 USD.\n" +
-        "3. A Ping4Ping CAN BE FREE for servers with 1.25x the number of members of PRBW.\n" +
-        "4. A simple partnership with no pings for servers of any member count will cost $10 USD.\n" +
-        "```");
-    let reqMsg;
-    try {
-        reqMsg = await ticketChannel.send({ embeds: [requirementsEmbed] });
-        console.log("Sent requirements embed.");
-    }
-    catch (error) {
-        console.error(`Error sending requirements embed: ${error}`);
-    }
-    // Pin the requirements message.
-    if (reqMsg) {
-        try {
-            await reqMsg.pin();
-            console.log("Pinned requirements embed.");
-        }
-        catch (error) {
-            console.error("Error pinning requirements embed:", error);
-        }
-    }
-    // If memberCount is not zero, send another embed to show eligibility.
     if (memberCount !== 0) {
         const eligibilityEmbed = new EmbedBuilder()
             .setColor(0x0099FF)
@@ -156,7 +134,6 @@ export async function handlePartnershipModal(interaction) {
             console.error(`Error sending eligibility embed: ${error}`);
         }
     }
-    // Finally, confirm to the user that the ticket was created.
     try {
         await interaction.editReply({
             content: `Your partnership ticket has been created: <#${ticketChannel.id}>`
@@ -165,7 +142,4 @@ export async function handlePartnershipModal(interaction) {
     catch (error) {
         console.error(`Error sending confirmation reply: ${error}`);
     }
-}
-function capitalize(str) {
-    return str.charAt(0).toUpperCase() + str.slice(1);
 }

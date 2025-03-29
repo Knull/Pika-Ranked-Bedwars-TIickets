@@ -11,6 +11,8 @@ import { createTicketChannel } from '../handlers/ticketHandlers.js';
 import { handleAppealReasonModal, handleBanAppealModal } from '../modals/appealReasonModal.js';
 import { handlePartnershipModal } from '../modals/partnershipModal.js'; 
 import { instructionsCache } from '../utils/instructionsCache.js';
+import { handleClaimTicketModal } from '../modals/claimTicketModal.js';
+import { handleDeleteTicketModal } from '../modals/deleteTicketModal.js';
 import winston from 'winston';
 
 const logger = winston.createLogger({
@@ -86,6 +88,8 @@ export const modalRegistry: { [key: string]: (interaction: ModalSubmitInteractio
       ephemeral: true
     });
   },
+  'claim_ticket': handleClaimTicketModal,
+  'delete_ticket_manual': handleDeleteTicketModal
 };
 
 function capitalize(str: string): string {

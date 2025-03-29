@@ -1,7 +1,6 @@
 export async function registerInteractions(client, interaction) {
     // Handle autocomplete interactions
     if (interaction.isAutocomplete()) {
-        // Check if the client has a commands collection
         if (client.commands) {
             const command = client.commands.get(interaction.commandName);
             if (command && typeof command.autocomplete === 'function') {
@@ -16,7 +15,7 @@ export async function registerInteractions(client, interaction) {
         }
         return;
     }
-    // Handle slash (chat input) commands
+    // Handle slash commands
     if (interaction.isChatInputCommand()) {
         if (client.commands) {
             const command = client.commands.get(interaction.commandName);
@@ -54,7 +53,6 @@ export async function registerInteractions(client, interaction) {
         }
         return;
     }
-    // Handle modals
     if (interaction.isModalSubmit()) {
         const { modalRegistry } = await import('../registries/ModalHandlerRegistry.js');
         const handlerKey = Object.keys(modalRegistry).find(prefix => interaction.customId.startsWith(prefix));
@@ -66,15 +64,27 @@ export async function registerInteractions(client, interaction) {
         }
         return;
     }
-    // Handle select menus (dropdowns)
-    if (interaction.isStringSelectMenu()) {
-        const { DropdownHandlerRegistry } = await import('../registries/DropdownHandlerRegistry.js');
-        const handlerKey = Object.keys(DropdownHandlerRegistry).find(prefix => interaction.customId.startsWith(prefix));
+    // Handle role select menus
+    if (interaction.isRoleSelectMenu()) {
+        const { RoleSelectHandlers } = await import('../registries/DropdownHandlerRegistry.js');
+        const handlerKey = Object.keys(RoleSelectHandlers).find(prefix => interaction.customId.startsWith(prefix));
         if (handlerKey) {
-            await DropdownHandlerRegistry[handlerKey](interaction);
+            await RoleSelectHandlers[handlerKey](interaction);
         }
         else {
-            console.warn(`Unhandled dropdown interaction: ${interaction.customId}`);
+            console.warn(`Unhandled role select interaction: ${interaction.customId}`);
+        }
+        return;
+    }
+    // Handle string select menus
+    if (interaction.isStringSelectMenu()) {
+        const { StringSelectHandlers } = await import('../registries/DropdownHandlerRegistry.js');
+        const handlerKey = Object.keys(StringSelectHandlers).find(prefix => interaction.customId.startsWith(prefix));
+        if (handlerKey) {
+            await StringSelectHandlers[handlerKey](interaction);
+        }
+        else {
+            console.warn(`Unhandled string select interaction: ${interaction.customId}`);
         }
         return;
     }
