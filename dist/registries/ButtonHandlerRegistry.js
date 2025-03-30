@@ -7,7 +7,7 @@ import { showInitialAppealDropdown } from '../dropdowns/appealDropdown.js';
 import winston from 'winston';
 import { instructionsCache } from '../utils/instructionsCache.js';
 import { confirmTicketConfigPermissions, cancelTicketConfigPermissions } from '../handlers/ticketPermissionHandlers.js';
-import { handleCloseTicket, handleDeleteTicketAuto, handleAdvancedTicketLog } from '../handlers/ticketHandlers.js';
+import { handleCloseTicket, handleReopenTicket, handleDeleteTicketAuto, handleAdvancedTicketLog } from '../handlers/ticketHandlers.js';
 import config from '../config/config.js';
 const logger = winston.createLogger({
     transports: [new winston.transports.Console()]
@@ -277,5 +277,6 @@ export const ButtonHandlerRegistry = {
     'cancel_permissions_': cancelTicketConfigPermissions,
     'advanced_ticketLog': async (interaction, client) => {
         await handleAdvancedTicketLog(interaction);
-    }
+    },
+    'reopen_ticket': handleReopenTicket,
 };

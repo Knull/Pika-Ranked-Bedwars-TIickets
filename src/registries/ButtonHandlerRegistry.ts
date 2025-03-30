@@ -275,5 +275,6 @@ export const ButtonHandlerRegistry: { [key: string]: (interaction: ButtonInterac
   'cancel_permissions_': cancelTicketConfigPermissions,
   'advanced_ticketLog': async (interaction, client) => {
     await handleAdvancedTicketLog(interaction);
-  }
+  },
+  'reopen_ticket' : handleReopenTicket,
 };

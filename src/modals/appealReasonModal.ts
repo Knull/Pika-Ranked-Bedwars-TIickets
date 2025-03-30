@@ -76,14 +76,24 @@ export async function handleBanAppealModal(interaction: ModalSubmitInteraction):
   // Immediately defer the reply.
   await interaction.deferReply({ ephemeral: true });
 
-  const customId = interaction.customId; // e.g. "appeal_ban_modal_screenshare_appeal"
+  // Extract ban type from the custom ID.
+  // Expected customId format: "appeal_ban_modal_<banType>"
+  const customId = interaction.customId; // e.g. "appeal_ban_modal_screenshare_ban"
   const banType = customId.replace('appeal_ban_modal_', '');
+  
   const reason = interaction.fields.getTextInputValue('reason').trim();
-
   if (reason.split(/\s+/).length < 10) {
     await interaction.editReply({ content: 'Please provide at least 10 words.' });
     return;
   }
-  
-  await createTicketChannel(interaction, 'Ban Appeal', { title: 'Ban Appeal', description: reason, banType }, true);
+
+  // For ban appeals, we use "Ban Appeal" as the base ticket type.
+  // The createTicketChannel function will override it to "screenshare_appeal" if banType is "screenshare_ban".
+  const ticketType = "Ban Appeal";
+  await createTicketChannel(
+    interaction,
+    ticketType,
+    { title: ticketType, description: reason, banType },
+    true
+  );
 }

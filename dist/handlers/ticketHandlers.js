@@ -1,4 +1,4 @@
-import { ChannelType, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, TextChannel, TextInputBuilder, ModalBuilder, TextInputStyle, PermissionsBitField, OverwriteType } from 'discord.js';
+import { ChannelType, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, TextChannel, TextInputBuilder, ModalBuilder, TextInputStyle, PermissionsBitField, ComponentType } from 'discord.js';
 import config from '../config/config.js';
 import prisma from '../utils/database.js';
 import { getCategoryId } from '../utils/discordUtils.js';
@@ -67,15 +67,22 @@ export async function createTicketChannel(interaction, ticketType, data, shouldD
     const prefix = '┃';
     const username = user.username.split(/[\s\W_]+/)[0] || user.username;
     const ticketChannelName = `${ticketCounter}${prefix}${username}`;
+    // Determine the effective ticket type.
     let effectiveTicketType = ticketType;
-    if (ticketType === 'Ban Appeal' && data.banType === 'screenshare_appeal') {
-        effectiveTicketType = 'screenshare_appeal';
+    if (ticketType === 'Ban Appeal') {
+        if (data.banType === 'screenshare_appeal') {
+            effectiveTicketType = 'Ban Appeal: Screenshare';
+        }
+        else if (data.banType === 'strike_ban') {
+            effectiveTicketType = 'Ban Appeal: Strike';
+        }
     }
+    // Fetch configuration using effective ticket type.
     const configEntry = await prisma.ticketConfig.findUnique({ where: { ticketType: effectiveTicketType } });
     if (!configEntry || !Array.isArray(configEntry.permissions) || !configEntry.permissions.length) {
-        throw new Error(`No permissions found in DB for ticketType ${ticketType}`);
+        throw new Error(`No permissions found in DB for ticketType ${effectiveTicketType}`);
     }
-    // Build permission overwrites
+    // Build permission overwrites based solely on the configuration.
     const allowedRoleIds = configEntry.permissions;
     let permissionOverwrites = [
         {
@@ -87,21 +94,11 @@ export async function createTicketChannel(interaction, ticketType, data, shouldD
             allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages]
         }))
     ];
-    // Special case for screenshare_appeal
-    if (ticketType === 'Ban Appeal' && data.banType === 'screenshare_appeal') {
-        permissionOverwrites.push({
-            id: config.SSAppealTeamRoleId,
-            allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages],
-            type: OverwriteType.Role
-        }, {
-            id: config.adminRoleId,
-            allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages],
-            type: OverwriteType.Role
-        });
-    }
-    const parentCategoryId = getCategoryId(ticketType);
+    // (Removed the hard-coded extra permissions block for screenshare appeals.)
+    // Use effectiveTicketType for parent category lookup.
+    const parentCategoryId = getCategoryId(effectiveTicketType);
     if (!parentCategoryId) {
-        throw new Error(`Parent category not set for ${ticketType}`);
+        throw new Error(`Parent category not set for ${effectiveTicketType}`);
     }
     const channelCreated = await guild.channels.create({
         name: ticketChannelName,
@@ -113,27 +110,33 @@ export async function createTicketChannel(interaction, ticketType, data, shouldD
     const ticketChannel = channelCreated;
     const welcomeMessage = `Hey <@${user.id}> 👋!\n\`\`\`Please wait patiently for staff to reply. If no one responds, you may ping staff. Thanks!\`\`\``;
     await ticketChannel.send(welcomeMessage);
-    // Build ticket embed
-    let embed = new EmbedBuilder()
-        .setColor(0x0099FF)
-        .setAuthor({ name: `${ticketType} Ticket`, iconURL: user.displayAvatarURL() });
-    if (ticketType === 'Store') {
-        const storeInstr = configEntry.useCustomInstructions && configEntry.instructions
-            ? configEntry.instructions
-            : 'No store instructions configured.';
-        embed.setTitle('Store Purchase').setDescription(`\`\`\`${storeInstr}\`\`\``);
-    }
-    else if (ticketType === 'Alt Appeal') {
-        const altInstr = configEntry.useCustomInstructions && configEntry.instructions
-            ? configEntry.instructions
-            : 'No alt appeal instructions configured.';
-        embed.setTitle(data.title).setDescription(`\`\`\`${data.description}\n\n${altInstr}\`\`\``);
-    }
-    else if (ticketType === 'Partnership') {
-        embed.setTitle(data.title).setDescription(`\`\`\`${data.description}\`\`\``);
+    // Build ticket embed.
+    // For Ban Appeal tickets, use the effective ticket type.
+    let embed = new EmbedBuilder().setColor(0x0099FF);
+    if (ticketType === 'Ban Appeal') {
+        embed.setAuthor({ name: `${effectiveTicketType} Ticket`, iconURL: user.displayAvatarURL() });
+        embed.setTitle(effectiveTicketType).setDescription(`\`\`\`${data.description}\`\`\``);
     }
     else {
-        embed.setTitle(data.title).setDescription(`\`\`\`${data.description}\`\`\``);
+        embed.setAuthor({ name: `${ticketType} Ticket`, iconURL: user.displayAvatarURL() });
+        if (ticketType === 'Store') {
+            const storeInstr = configEntry.useCustomInstructions && configEntry.instructions
+                ? configEntry.instructions
+                : 'No store instructions configured.';
+            embed.setTitle('Store Purchase').setDescription(`\`\`\`${storeInstr}\`\`\``);
+        }
+        else if (ticketType === 'Alt Appeal') {
+            const altInstr = configEntry.useCustomInstructions && configEntry.instructions
+                ? configEntry.instructions
+                : 'No alt appeal instructions configured.';
+            embed.setTitle(data.title).setDescription(`\`\`\`${data.description}\n\n${altInstr}\`\`\``);
+        }
+        else if (ticketType === 'Partnership') {
+            embed.setTitle(data.title).setDescription(`\`\`\`${data.description}\`\`\``);
+        }
+        else {
+            embed.setTitle(data.title).setDescription(`\`\`\`${data.description}\`\`\``);
+        }
     }
     const row = new ActionRowBuilder().addComponents(new ButtonBuilder()
         .setCustomId('close_ticket')
@@ -160,7 +163,7 @@ export async function createTicketChannel(interaction, ticketType, data, shouldD
         const sentMsg = await ticketChannel.send({ embeds: [partnershipEmbed] });
         await sentMsg.pin().catch(e => console.error('Error pinning partnership embed:', e));
     }
-    // Final reason stored in DB
+    // Determine final reason.
     let finalReason;
     if (ticketType === 'Store') {
         finalReason =
@@ -183,7 +186,7 @@ export async function createTicketChannel(interaction, ticketType, data, shouldD
     await prisma.ticket.create({
         data: {
             ticketNumber: ticketCounter,
-            ticketType,
+            ticketType: effectiveTicketType, // store effective ticket type in DB
             status: 'open',
             channelId: ticketChannel.id,
             userId: user.id,
@@ -191,7 +194,7 @@ export async function createTicketChannel(interaction, ticketType, data, shouldD
             reason: ticketType === 'Partnership' ? data.description : finalReason
         }
     });
-    // Increment the ticket counter in DB
+    // Increment the ticket counter in DB.
     await prisma.ticketSettings.update({
         where: { id: 1 },
         data: { ticketCounter: ticketCounter + 1 }
@@ -350,26 +353,27 @@ export async function handlePlayerInfo(interaction, client) {
     }
 }
 export async function handleAddCommand(interaction) {
-    await interaction.deferReply({ ephemeral: true });
+    // Defer publicly.
+    await interaction.deferReply({ ephemeral: false });
     const mentionable = interaction.options.getMentionable('mentionable');
     const channel = interaction.channel;
     if (!mentionable) {
         await interaction.editReply({ content: 'Please specify a valid user or role to add.' });
         return;
     }
-    // Update channel permission
+    // Update channel permissions.
     await channel.permissionOverwrites.edit(mentionable.id, {
         ViewChannel: true,
         SendMessages: true
     });
     await channel.send(`${mentionable}`);
-    // Update the ticket record
+    // Update ticket record.
     const ticket = await prisma.ticket.findFirst({ where: { channelId: channel.id } });
     if (ticket) {
-        // Determine if mentionable is a user or a role.
         if (mentionable.user) {
-            // It's a user: cast the field to string[].
-            let currentUsers = Array.isArray(ticket.added_user) ? ticket.added_user : [];
+            let currentUsers = Array.isArray(ticket.added_user)
+                ? ticket.added_user
+                : [];
             if (!currentUsers.includes(mentionable.id)) {
                 currentUsers.push(mentionable.id);
             }
@@ -379,8 +383,9 @@ export async function handleAddCommand(interaction) {
             });
         }
         else {
-            // It's a role.
-            let currentRoles = Array.isArray(ticket.added_roles) ? ticket.added_roles : [];
+            let currentRoles = Array.isArray(ticket.added_roles)
+                ? ticket.added_roles
+                : [];
             if (!currentRoles.includes(mentionable.id)) {
                 currentRoles.push(mentionable.id);
             }
@@ -390,26 +395,34 @@ export async function handleAddCommand(interaction) {
             });
         }
     }
+    // Determine ping string.
+    const ping = mentionable.user
+        ? `<@${mentionable.id}>`
+        : `<@&${mentionable.id}>`;
+    // Build confirmation embed.
     const embed = new EmbedBuilder()
         .setColor(0x2e96e6)
-        .setDescription(`> Granted ${mentionable} access to <#${channel.id}>.`);
-    await interaction.editReply({ content: '', embeds: [embed] });
+        .setDescription(`> Granted ${ping} access to <#${channel.id}>.`);
+    await interaction.editReply({ content: ping, embeds: [embed] });
 }
 export async function handleRemoveCommand(interaction) {
-    await interaction.deferReply({ ephemeral: true });
+    // Defer publicly.
+    await interaction.deferReply({ ephemeral: false });
     const mentionable = interaction.options.getMentionable('mentionable');
     const channel = interaction.channel;
     if (!mentionable) {
         await interaction.editReply({ content: 'Please specify a valid user or role to remove.' });
         return;
     }
-    // Remove channel permission
+    // Remove channel permission.
     await channel.permissionOverwrites.delete(mentionable.id);
-    // Update the ticket record
+    // Update ticket record.
     const ticket = await prisma.ticket.findFirst({ where: { channelId: channel.id } });
     if (ticket) {
         if (mentionable.user) {
-            let currentUsers = Array.isArray(ticket.added_user) ? ticket.added_user : [];
+            let currentUsers = Array.isArray(ticket.added_user)
+                ? ticket.added_user
+                : [];
             currentUsers = currentUsers.filter(id => id !== mentionable.id);
             await prisma.ticket.update({
                 where: { id: ticket.id },
@@ -417,7 +430,9 @@ export async function handleRemoveCommand(interaction) {
             });
         }
         else {
-            let currentRoles = Array.isArray(ticket.added_roles) ? ticket.added_roles : [];
+            let currentRoles = Array.isArray(ticket.added_roles)
+                ? ticket.added_roles
+                : [];
             currentRoles = currentRoles.filter(id => id !== mentionable.id);
             await prisma.ticket.update({
                 where: { id: ticket.id },
@@ -425,10 +440,15 @@ export async function handleRemoveCommand(interaction) {
             });
         }
     }
+    // Determine ping string.
+    const ping = mentionable.user
+        ? `<@${mentionable.id}>`
+        : `<@&${mentionable.id}>`;
+    // Build confirmation embed.
     const embed = new EmbedBuilder()
         .setColor(0xe62e2e)
-        .setDescription(`> Removed ${mentionable} access from <#${channel.id}>.`);
-    await interaction.editReply({ embeds: [embed] });
+        .setDescription(`> Removed ${ping} access from <#${channel.id}>.`);
+    await interaction.editReply({ content: ping, embeds: [embed] });
 }
 export async function promptReason(client, interaction, action) {
     const modal = new ModalBuilder().setCustomId(`reason_${action}`).setTitle('Reason for Action');
@@ -518,47 +538,85 @@ export async function handleClaimTicket(interaction, reason, client) {
 export async function handleReopenTicket(interaction) {
     try {
         await interaction.deferReply({ ephemeral: true });
+        // Validate channel.
         const channel = interaction.channel;
         if (!channel || !(channel instanceof TextChannel)) {
             await interaction.followUp({ content: 'Channel not found or invalid.', ephemeral: true });
             return;
         }
+        // Retrieve the ticket from the DB using the channel ID.
         const ticket = await prisma.ticket.findFirst({ where: { channelId: channel.id } });
         if (!ticket) {
             await interaction.followUp({ content: 'Ticket not found in the database.', ephemeral: true });
             return;
         }
+        // Move the channel to the active category.
         const normalCategoryId = getCategoryId(ticket.ticketType, false);
         if (!normalCategoryId) {
-            await interaction.followUp({
-                content: 'Normal category not set for this ticket type.',
-                ephemeral: true
-            });
+            await interaction.followUp({ content: 'Normal category not set for this ticket type.', ephemeral: true });
             return;
         }
         await channel.setParent(normalCategoryId, { lockPermissions: false });
+        // Restore the ticket creator's permissions.
         await channel.permissionOverwrites.edit(ticket.userId, {
             ViewChannel: true,
             SendMessages: true
         });
-        await prisma.ticket.update({ where: { id: ticket.id }, data: { status: 'open' } });
-        // Try to disable certain buttons in the old close message
-        const messages = await channel.messages.fetch({ limit: 10 });
-        const botMessage = messages.find(m => m.author.id === interaction.client.user?.id && m.components.length > 0);
-        if (botMessage) {
-            const updatedComponents = botMessage.components.map(row => ({
-                type: row.type,
-                components: row.components.map(component => {
-                    const data = JSON.parse(JSON.stringify(component));
-                    // Only disable if it's a button with a certain custom_id
-                    if ('custom_id' in data && ['reopen_ticket', 'delete_ticket_manual', 'delete_ticket_auto'].includes(data.custom_id)) {
-                        data.disabled = true;
-                    }
-                    return data;
-                })
-            }));
-            await botMessage.edit({ components: updatedComponents });
+        // Update the ticket status in the database.
+        await prisma.ticket.update({
+            where: { id: ticket.id },
+            data: { status: 'open' }
+        });
+        // -------------------------------
+        // Update Message 1: the stored message with Close/Claim buttons.
+        if (ticket.ticketMessageId) {
+            const storedMessage = await channel.messages.fetch(ticket.ticketMessageId).catch(() => null);
+            if (storedMessage) {
+                const updatedRows = storedMessage.components.map(row => {
+                    const newRow = new ActionRowBuilder();
+                    row.components.forEach(comp => {
+                        if (comp.type === ComponentType.Button) {
+                            // Create a mutable ButtonBuilder.
+                            const button = ButtonBuilder.from(comp);
+                            // Access the underlying API property "custom_id"
+                            const customId = button.data.custom_id;
+                            console.log('Stored message button custom_id:', customId);
+                            // Enable Close and Claim buttons.
+                            if (customId === 'close_ticket' || customId === 'claim_ticket') {
+                                button.setDisabled(false);
+                            }
+                            newRow.addComponents(button);
+                        }
+                    });
+                    return newRow;
+                });
+                await storedMessage.edit({ components: updatedRows });
+            }
         }
+        // -------------------------------
+        // Update Message 2: the interaction message with Reopen/Delete buttons.
+        if (interaction.message) {
+            const updatedRows = interaction.message.components.map(row => {
+                const newRow = new ActionRowBuilder();
+                row.components.forEach(comp => {
+                    if (comp.type === ComponentType.Button) {
+                        const button = ButtonBuilder.from(comp);
+                        const customId = button.data.custom_id;
+                        console.log('Interaction message button custom_id:', customId);
+                        // Disable Reopen and Delete buttons.
+                        if (customId === 'reopen_ticket' ||
+                            customId === 'delete_ticket_manual' ||
+                            customId === 'delete_ticket_auto') {
+                            button.setDisabled(true);
+                        }
+                        newRow.addComponents(button);
+                    }
+                });
+                return newRow;
+            });
+            await interaction.message.edit({ components: updatedRows });
+        }
+        // Announce that the ticket has been reopened.
         await channel.send({
             content: `<@${ticket.userId}>`,
             embeds: [
@@ -570,7 +628,7 @@ export async function handleReopenTicket(interaction) {
         await interaction.followUp({ content: 'Ticket has been reopened.', ephemeral: true });
     }
     catch (error) {
-        console.error('Error reopening ticket:', error);
+        console.error('Error in handleReopenTicket:', error);
         await interaction.followUp({ content: 'Failed to reopen ticket.', ephemeral: true });
     }
 }

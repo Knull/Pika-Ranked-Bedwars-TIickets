@@ -1,8 +1,9 @@
 
 // src/config/config.ts
 export default {
-    token: 'MTIyMTcwOTI2ODE2NDgwNDY1OQ.GoPPmh.fx9X72XJl0V3oCYroZ2S2G6cIWd6-J291obW_k',
+    token: 'MTIyMTcwOTI2ODE2NDgwNDY1OQ.GoPPmh.fx9X72XJl0V3oCYroZ2S2G6cIWd6-J291oW_k',
     ticketsChannelId: '1345036159004446761',
+    ticketsChannelId2: '1355831584426688562',
     generalTicketsCategoryId: '1345036144068530238',
     archivedGeneralTicketsCategoryId: '1345036273496232017',
     appealTicketsCategoryId: '1345036144068530238',
@@ -26,6 +27,10 @@ export default {
     clientId: '1221709268164804659',
     guildId: '1218431496612876388',
     transcriptChannel1: '1345036777492058215',
-    transcriptChannel2: '1345036791094448212'
+    transcriptChannel2: '1345036791094448212',
+    boosterRoleId: '1355832637515763722',
+    managerRoleId: '1355836241136062534',
+    ownerRoleId: '1355836298597761084',
+
   };
   
