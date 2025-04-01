@@ -93,60 +93,40 @@ export const special_roles = [
   config.boosterRoleId,
   config.staffRoleId
 ];
-export async function createTicketChannel(
-  interaction: any,
-  ticketType: string,
-  data: { title: string; description: string; banType?: string },
-  shouldDefer: boolean = true
-): Promise<TextChannel> {
-  const { guild, user } = interaction;
+export async function createTicketChannel(interaction: any, ticketType: string, data: { title: string; description: string; banType?: string }, shouldDefer: boolean = true): Promise<TextChannel> {
+  const { guild, user } = interaction
   if (!guild) {
     if (shouldDefer && !interaction.deferred) {
-      await interaction.reply({ content: 'Guild not found', ephemeral: true }).catch(() => {});
+      await interaction.reply({ content: 'Guild not found', ephemeral: true }).catch(() => {})
     }
-    throw new Error('Guild not found');
+    throw new Error('Guild not found')
   }
-  
   if (shouldDefer && !interaction.deferred) {
-    await interaction.deferReply({ ephemeral: true });
+    await interaction.deferReply({ ephemeral: true })
   }
-  
-  const settings = await prisma.ticketSettings.findUnique({ where: { id: 1 } });
-  let ticketCounter = settings?.ticketCounter || 1;
-  const prefix = '┃';
-  const username = user.username.split(/[\s\W_]+/)[0] || user.username;
-  
-  let ticketChannelName: string;
-  if (
-    interaction.member &&
-    (interaction.member as any).roles &&
-    (interaction.member as any).roles.cache.some((r: any) => special_roles.includes(r.id))
-  ) {
-    ticketChannelName = `💞︱priority・${username}`;
+  const settings = await prisma.ticketSettings.findUnique({ where: { id: 1 } })
+  let ticketCounter = settings?.ticketCounter || 1
+  const prefix = '┃'
+  const username = user.username.split(/[\s\W_]+/)[0] || user.username
+  let ticketChannelName: string
+  if (interaction.member && (interaction.member as any).roles && (interaction.member as any).roles.cache.some((r: any) => special_roles.includes(r.id))) {
+    ticketChannelName = `💞︱priority・${username}`
   } else {
-    ticketChannelName = `${ticketCounter}${prefix}${username}`;
+    ticketChannelName = `${ticketCounter}${prefix}${username}`
   }
-  
-
-
-  // Determine the effective ticket type.
-  let effectiveTicketType = ticketType;
+  let effectiveTicketType = ticketType
   if (ticketType === 'Ban Appeal') {
     if (data.banType === 'screenshare_appeal') {
-      effectiveTicketType = 'Ban Appeal: Screenshare';
+      effectiveTicketType = 'Ban Appeal: Screenshare'
     } else if (data.banType === 'strike_ban') {
-      effectiveTicketType = 'Ban Appeal: Strike';
+      effectiveTicketType = 'Ban Appeal: Strike'
     }
   }
-
-  // Fetch configuration using effective ticket type.
-  const configEntry = await prisma.ticketConfig.findUnique({ where: { ticketType: effectiveTicketType } });
+  const configEntry = await prisma.ticketConfig.findUnique({ where: { ticketType: effectiveTicketType } })
   if (!configEntry || !Array.isArray(configEntry.permissions) || !configEntry.permissions.length) {
-    throw new Error(`No permissions found in DB for ticketType ${effectiveTicketType}`);
+    throw new Error(`No permissions found in DB for ticketType ${effectiveTicketType}`)
   }
-
-  // Build permission overwrites based solely on the configuration.
-  const allowedRoleIds = configEntry.permissions as string[];
+  const allowedRoleIds = configEntry.permissions as string[]
   let permissionOverwrites: OverwriteResolvable[] = [
     {
       id: guild.id,
@@ -156,140 +136,90 @@ export async function createTicketChannel(
       id: roleId,
       allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages]
     }))
-  ];
-
-  // (Removed the hard-coded extra permissions block for screenshare appeals.)
-
-  // Use effectiveTicketType for parent category lookup.
-  const parentCategoryId = getCategoryId(effectiveTicketType);
+  ]
+  permissionOverwrites.push({
+    id: user.id,
+    allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages]
+  })
+  const parentCategoryId = getCategoryId(effectiveTicketType)
   if (!parentCategoryId) {
-    throw new Error(`Parent category not set for ${effectiveTicketType}`);
+    throw new Error(`Parent category not set for ${effectiveTicketType}`)
   }
-
   const channelCreated = await guild.channels.create({
     name: ticketChannelName,
     type: ChannelType.GuildText,
     parent: parentCategoryId,
     permissionOverwrites,
     topic: `[${ticketType}] Ticket for ${user.username}`
-  });
-
-  const ticketChannel = channelCreated as TextChannel;
-  const welcomeMessage = `Hey <@${user.id}> 👋!\n\`\`\`Please wait patiently for staff to reply. If no one responds, you may ping staff. Thanks!\`\`\``;
-  await ticketChannel.send(welcomeMessage);
-
-  // Build ticket embed.
-  // For Ban Appeal tickets, use the effective ticket type.
-  let embed = new EmbedBuilder().setColor(0x0099FF);
+  })
+  const ticketChannel = channelCreated as TextChannel
+  const welcomeMessage = `Hey <@${user.id}> 👋!\n\`\`\`Please wait patiently for staff to reply. If no one responds, you may ping staff. Thanks!\`\`\``
+  await ticketChannel.send(welcomeMessage)
+  let embed = new EmbedBuilder().setColor(0x0099FF)
   if (ticketType === 'Ban Appeal') {
-    embed.setAuthor({ name: `${effectiveTicketType} Ticket`, iconURL: user.displayAvatarURL() });
-    embed.setTitle(effectiveTicketType).setDescription(`\`\`\`${data.description}\`\`\``);
+    embed.setAuthor({ name: `${effectiveTicketType} Ticket`, iconURL: user.displayAvatarURL() })
+    embed.setTitle(effectiveTicketType).setDescription(`\`\`\`${data.description}\`\`\``)
   } else {
-    embed.setAuthor({ name: `${ticketType} Ticket`, iconURL: user.displayAvatarURL() });
+    embed.setAuthor({ name: `${ticketType} Ticket`, iconURL: user.displayAvatarURL() })
     if (ticketType === 'Store') {
-      const storeInstr =
-        configEntry.useCustomInstructions && configEntry.instructions
-          ? configEntry.instructions
-          : 'No store instructions configured.';
-      embed.setTitle('Store Purchase').setDescription(`\`\`\`${storeInstr}\`\`\``);
+      const storeInstr = configEntry.useCustomInstructions && configEntry.instructions ? configEntry.instructions : 'No store instructions configured.'
+      embed.setTitle('Store Purchase').setDescription(`\`\`\`${storeInstr}\`\`\``)
     } else if (ticketType === 'Alt Appeal') {
-      const altInstr =
-        configEntry.useCustomInstructions && configEntry.instructions
-          ? configEntry.instructions
-          : 'No alt appeal instructions configured.';
-      embed.setTitle(data.title).setDescription(`\`\`\`${data.description}\n\`\`\``);
+      const altInstr = configEntry.useCustomInstructions && configEntry.instructions ? configEntry.instructions : 'No alt appeal instructions configured.'
+      embed.setTitle(data.title).setDescription(`\`\`\`${data.description}\n\`\`\``)
     } else if (ticketType === 'Partnership') {
-      embed.setTitle(data.title).setDescription(`\`\`\`${data.description}\`\`\``);
+      embed.setTitle(data.title).setDescription(`\`\`\`${data.description}\`\`\``)
     } else {
-      embed.setTitle(data.title).setDescription(`\`\`\`${data.description}\`\`\``);
+      embed.setTitle(data.title).setDescription(`\`\`\`${data.description}\`\`\``)
     }
   }
-
   const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder()
-      .setCustomId('close_ticket')
-      .setLabel('Close')
-      .setStyle(ButtonStyle.Danger)
-      .setEmoji('🔒'),
-    new ButtonBuilder()
-      .setCustomId('claim_ticket')
-      .setLabel('Claim')
-      .setStyle(ButtonStyle.Success)
-      .setEmoji('<a:check:1256329093679681608>')
-  );
-
-  const ticketMsg = await ticketChannel.send({ embeds: [embed], components: [row] });
-
+    new ButtonBuilder().setCustomId('close_ticket').setLabel('Close').setStyle(ButtonStyle.Danger).setEmoji('🔒'),
+    new ButtonBuilder().setCustomId('claim_ticket').setLabel('Claim').setStyle(ButtonStyle.Success).setEmoji('<a:check:1256329093679681608>')
+  )
+  const ticketMsg = await ticketChannel.send({ embeds: [embed], components: [row] })
   if (ticketType === 'Partnership') {
-    const partInfo =
-      configEntry.useCustomInstructions && configEntry.instructions
-        ? configEntry.instructions
-        : 'No partnership instructions configured.';
-    const partnershipEmbed = new EmbedBuilder()
-      .setColor(0xff0000)
-      .setAuthor({
-        name: 'Pinned Message',
-        iconURL: 'https://cdn.discordapp.com/emojis/1348557777785716756.webp?size=44'
-      })
-      .setTitle('Partnership Requirements')
-      .setDescription(partInfo);
-
-    const sentMsg = await ticketChannel.send({ embeds: [partnershipEmbed] });
-    await sentMsg.pin().catch(e => console.error('Error pinning partnership embed:', e));
+    const partInfo = configEntry.useCustomInstructions && configEntry.instructions ? configEntry.instructions : 'No partnership instructions configured.'
+    const partnershipEmbed = new EmbedBuilder().setColor(0xff0000).setAuthor({ name: 'Pinned Message', iconURL: 'https://cdn.discordapp.com/emojis/1348557777785716756.webp?size=44' }).setTitle('Partnership Requirements').setDescription(partInfo)
+    const sentMsg = await ticketChannel.send({ embeds: [partnershipEmbed] })
+    await sentMsg.pin().catch(e => console.error('Error pinning partnership embed:', e))
   }
-
-  // Determine final reason.
-  let finalReason: string;
+  let finalReason: string
   if (ticketType === 'Store') {
-    finalReason =
-      configEntry.useCustomInstructions && configEntry.instructions
-        ? configEntry.instructions
-        : 'No store instructions configured.';
+    finalReason = configEntry.useCustomInstructions && configEntry.instructions ? configEntry.instructions : 'No store instructions configured.'
   } else if (ticketType === 'Partnership') {
-    finalReason = data.description;
+    finalReason = data.description
   } else if (ticketType === 'Alt Appeal') {
-    const altInstr =
-      configEntry.useCustomInstructions && configEntry.instructions
-        ? configEntry.instructions
-        : 'No alt appeal instructions configured.';
+    const altInstr = configEntry.useCustomInstructions && configEntry.instructions ? configEntry.instructions : 'No alt appeal instructions configured.'
     if (data.description.trim().endsWith(altInstr.trim())) {
-      finalReason = data.description;
+      finalReason = data.description
     } else {
-      finalReason = `${data.description}\n\n${altInstr}`;
+      finalReason = `${data.description}\n\n${altInstr}`
     }
   } else {
-    finalReason = data.description;
+    finalReason = data.description
   }
-  
-
   await prisma.ticket.create({
     data: {
       ticketNumber: ticketCounter,
-      ticketType: effectiveTicketType, // store effective ticket type in DB
+      ticketType: effectiveTicketType,
       status: 'open',
       channelId: ticketChannel.id,
       userId: user.id,
       ticketMessageId: ticketMsg.id,
       reason: ticketType === 'Partnership' ? data.description : finalReason
     }
-  });
-
-  // Increment the ticket counter in DB.
+  })
   await prisma.ticketSettings.update({
     where: { id: 1 },
     data: { ticketCounter: ticketCounter + 1 }
-  });
-
+  })
   if (shouldDefer) {
-    await interaction
-      .editReply({
-        content: `Your ticket has been opened. Head over to <#${ticketChannel.id}> to continue.`
-      })
-      .catch(() => {});
+    await interaction.editReply({ content: `Your ticket has been opened. Head over to <#${ticketChannel.id}> to continue.` }).catch(() => {})
   }
-
-  return ticketChannel;
+  return ticketChannel
 }
+
 
 export async function handleCloseTicket(interaction: ButtonInteraction): Promise<void> {
   try {
