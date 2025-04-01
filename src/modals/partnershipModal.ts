@@ -8,7 +8,7 @@ import {
   EmbedBuilder,
   MessageFlags 
 } from 'discord.js';
-import { createTicketChannel } from '../handlers/ticketHandlers.js';
+import { createTicket } from '../handlers/ticketCreationDispatcher.js';
 import prisma from '../utils/database.js';
 
 export function showPartnershipModal(interaction: any): void {
@@ -113,7 +113,7 @@ Server must be Minecraft related (exceptions can be made, e.g., for performance 
 4. A simple partnership with no pings for servers of any member count will cost $10 USD.
 \`\`\``;
   
-  // Create the ticket channel.
+  // Prepare ticket data for the partnership ticket.
   const ticketData = {
     title: 'Partnership Ticket',
     description: `${reason}`  // The main embed will use the user-provided description.
@@ -121,7 +121,8 @@ Server must be Minecraft related (exceptions can be made, e.g., for performance 
   
   let ticketChannel;
   try {
-    ticketChannel = await createTicketChannel(interaction, 'Partnership', ticketData, false);
+    // Use the dispatcher to create the ticket channel or thread.
+    ticketChannel = await createTicket(interaction, 'Partnership', ticketData, false);
     console.log(`Created ticket channel with ID: ${ticketChannel.id}`);
   } catch (error) {
     console.error('Failed to create partnership ticket:', error);
@@ -143,7 +144,6 @@ Server must be Minecraft related (exceptions can be made, e.g., for performance 
   } catch (error) {
     console.error(`Error sending invite link message: ${error}`);
   }
-  
   
   if (memberCount !== 0) {
     const eligibilityEmbed = new EmbedBuilder()

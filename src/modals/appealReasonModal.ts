@@ -1,6 +1,6 @@
 import { ModalBuilder, TextInputBuilder, ActionRowBuilder, TextInputStyle, ModalSubmitInteraction } from 'discord.js';
 import { createTicketChannel } from '../handlers/ticketHandlers.js';
-
+import { createTicket } from '../handlers/ticketCreationDispatcher.js';
 /**
  * Shows the modal for appeal reasons for mute or strike appeals.
  */
@@ -62,11 +62,11 @@ export async function handleAppealReasonModal(interaction: ModalSubmitInteractio
     return;
   }
 
+  // Determine the ticket type based on appeal type.
   const ticketType = appealType === 'appeal_mute' ? 'Mute Appeal' : 'Strike Appeal';
 
-  // Create the ticket channel.
-  // Pass "true" so that createTicketChannel ensures the interaction is deferred.
-  await createTicketChannel(interaction, ticketType, { title: ticketType, description: reason }, true);
+  // Use the dispatcher to create the ticket.
+  await createTicket(interaction, ticketType, { title: ticketType, description: reason }, true);
 }
 
 /**
@@ -78,7 +78,7 @@ export async function handleBanAppealModal(interaction: ModalSubmitInteraction):
 
   // Extract ban type from the custom ID.
   // Expected customId format: "appeal_ban_modal_<banType>"
-  const customId = interaction.customId; // e.g. "appeal_ban_modal_screenshare_ban"
+  const customId = interaction.customId; // e.g. "appeal_ban_modal_screenshare_appeal"
   const banType = customId.replace('appeal_ban_modal_', '');
   
   const reason = interaction.fields.getTextInputValue('reason').trim();
@@ -88,12 +88,6 @@ export async function handleBanAppealModal(interaction: ModalSubmitInteraction):
   }
 
   // For ban appeals, we use "Ban Appeal" as the base ticket type.
-  // The createTicketChannel function will override it to "screenshare_appeal" if banType is "screenshare_ban".
   const ticketType = "Ban Appeal";
-  await createTicketChannel(
-    interaction,
-    ticketType,
-    { title: ticketType, description: reason, banType },
-    true
-  );
+  await createTicket(interaction, ticketType, { title: ticketType, description: reason, banType }, true);
 }

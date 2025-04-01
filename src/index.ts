@@ -11,7 +11,7 @@ import { registerInteractions } from './interactions/interactionCreate.js';
 import { registerCommands } from './commands/commandHandler.js';
 import { populateTicketConfigs } from './utils/populateTicketConfigs.js';
 // 1. Initialize the client as ExtendedClient
-const client: ExtendedClient = new Client({
+export const client: ExtendedClient = new Client({
   intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages],
 }) as ExtendedClient;
 
@@ -36,14 +36,14 @@ client.once('ready', async () => {
     update: {},
     create: { ticketCounter: 1 }
   });
-  // /*
+  /*
   try {
     await populateTicketConfigs();
     console.log('TicketConfig table populated with default records.');
   } catch (error) {
     console.error('Error populating TicketConfig table:', error);
   }
-  // */
+  */
   // Register slash commands from slash_commands folder
   await registerCommands(client);
 

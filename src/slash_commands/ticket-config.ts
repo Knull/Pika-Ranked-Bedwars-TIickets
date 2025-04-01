@@ -1,5 +1,6 @@
 import { SlashCommandBuilder, ChatInputCommandInteraction, AutocompleteInteraction } from 'discord.js';
 import prisma from '../utils/database.js';
+import config from '../config/config.js';
 
 const data = new SlashCommandBuilder()
   .setName('ticket-config')
@@ -30,11 +31,31 @@ const data = new SlashCommandBuilder()
   );
 
 async function execute(interaction: ChatInputCommandInteraction) {
+  // First, check for admin role without deferring.
+  const member = interaction.member;
+  if (!member) {
+    await interaction.reply({ content: 'Member not found.', ephemeral: true });
+    return;
+  }
+  // roles might be a GuildMemberRoleManager or string[]
+  const roles = member.roles;
+  if (!('cache' in roles)) {
+    await interaction.reply({ content: `Only <@&${config.adminRoleId}> can use this command.`, ephemeral: true });
+    return;
+  }
+  if (!roles.cache.has(config.adminRoleId)) {
+    await interaction.reply({ content: `Only <@&${config.adminRoleId}> can use this command.`, ephemeral: true });
+    return;
+  }
+
   const subcmd = interaction.options.getSubcommand(true);
   if (subcmd === 'instructions') {
+    // For modals, do not defer reply.
     const { handleTicketConfigInstructions } = await import('../commands/ticketConfigInstructions.js');
     await handleTicketConfigInstructions(interaction);
   } else if (subcmd === 'permissions') {
+    // For permissions, we defer the reply.
+    await interaction.deferReply({ ephemeral: true });
     const { handleTicketConfigPermissions } = await import('../commands/ticketConfigPermissions.js');
     await handleTicketConfigPermissions(interaction);
   }

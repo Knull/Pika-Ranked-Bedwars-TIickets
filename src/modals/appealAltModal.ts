@@ -12,6 +12,7 @@ import {
 import axios from 'axios';
 import prisma from '../utils/database.js';
 import { createTicketChannel, handlePlayerInfo } from '../handlers/ticketHandlers.js';
+import { createTicket } from '../handlers/ticketCreationDispatcher.js';
 
 // Show the alt appeal modal (uses StringSelectMenuInteraction).
 export function showAppealAltModal(interaction: StringSelectMenuInteraction): void {
@@ -76,12 +77,7 @@ export async function handleAppealAltModal(interaction: ModalSubmitInteraction):
       : "Please provide your appeal details to verify your identity.";
     
     // Use "Alt Appeal" as the ticket type.
-    const ticketChannel = await createTicketChannel(
-      interaction,
-      "Alt Appeal",
-      { title: "Alt Appeal Ticket", description: instructions },
-      false
-    );
+    const ticketChannel = await createTicket(interaction, "Alt Appeal", { title: "Alt Appeal Ticket", description: instructions }, false);
     
     // Send player info embed.
     await handlePlayerInfo(

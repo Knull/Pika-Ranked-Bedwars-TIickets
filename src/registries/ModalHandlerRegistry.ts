@@ -3,8 +3,9 @@ import {
   EmbedBuilder, 
   ActionRowBuilder, 
   ButtonBuilder, 
-  ButtonStyle 
+  ButtonStyle,
 } from 'discord.js';
+import { client } from '../index.js';
 import { handleAppealAltModal } from '../modals/appealAltModal.js';
 import { handleUniversalTicketModal } from '../modals/universalTicketModal.js';
 import { createTicketChannel } from '../handlers/ticketHandlers.js';
@@ -14,7 +15,7 @@ import { instructionsCache } from '../utils/instructionsCache.js';
 import { handleClaimTicketModal } from '../modals/claimTicketModal.js';
 import { handleDeleteTicketModal } from '../modals/deleteTicketModal.js';
 import winston from 'winston';
-
+import { createTicket } from '../handlers/ticketCreationDispatcher.js';
 const logger = winston.createLogger({
   transports: [new winston.transports.Console()]
 });
@@ -35,7 +36,7 @@ export const modalRegistry: { [key: string]: (interaction: ModalSubmitInteractio
     console.error("Error deferring modal interaction:", e);
   }
   const { ticketType, title, description } = handleUniversalTicketModal(interaction);
-  await createTicketChannel(interaction, capitalize(ticketType), { title, description });
+  await createTicket(interaction, capitalize(ticketType), { title, description });
 },
 
   // Handles mute/strike appeal modals (custom IDs like "appeal_reason_modal_appeal_mute" or "..._appeal_strike")

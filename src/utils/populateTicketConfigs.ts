@@ -12,21 +12,21 @@ export async function populateTicketConfigs(): Promise<void> {
     {
       ticketType: "Store",
       allowCustomInstructions: true,
-      useCustomInstructions: false,
+      useCustomInstructions: true,
       instructions: "Once you're done selecting a product, please describe your payment method and any questions you have.",
       previewTitle: "Store Purchase"
     },
     {
       ticketType: "Alt Appeal",
       allowCustomInstructions: true,
-      useCustomInstructions: false,
+      useCustomInstructions: true,
       instructions: "Please provide your appeal details to verify your identity.",
       previewTitle: "Alt Appeal Ticket"
     },
     {
       ticketType: "Partnership",
       allowCustomInstructions: true,
-      useCustomInstructions: false,
+      useCustomInstructions: true,
       instructions: `### PRBW is no longer doing free partnerships.
       
 Server must be Minecraft related (exceptions can be made, e.g., for performance enhancing softwares).

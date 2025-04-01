@@ -10,11 +10,17 @@ import { getPermissionOverwrites } from '../utils/discordUtils.js';
 import { confirmTicketConfigPermissions, cancelTicketConfigPermissions } from '../handlers/ticketPermissionHandlers.js'
 import { handleCloseTicket, handleReopenTicket, handleClaimTicket, handleDeleteTicketManual, handleDeleteTicketAuto, handleAdvancedTicketLog } from '../handlers/ticketHandlers.js';
 import config from '../config/config.js';
+import { createTicket } from '../handlers/ticketCreationDispatcher.js';
+import {
+  handleTicketToggleButton,
+  handleTicketToggleConfirm,
+  handleTicketToggleCancel,
+} from '../slash_commands/ticketToggleCommand.js';
 const logger = winston.createLogger({
   transports: [new winston.transports.Console()]
 });
 import { RoleSelectCache } from '../utils/roleSelectCache.js';
-
+import { handleCloseThread, handleReopenThread } from '../handlers/threadTicketHandlers.js';
 async function checkTicketLimit(interaction: ButtonInteraction): Promise<boolean> {
   try {
     const openTickets = await prisma.ticket.findMany({ where: { userId: interaction.user.id, status: 'open' } });
@@ -114,7 +120,8 @@ export const ButtonHandlerRegistry: { [key: string]: (interaction: ButtonInterac
         title: 'Store Purchase', 
         description: "Once you're done selecting a product, please describe your payment method and any questions you have."
       };
-      const ticketChannel = await createTicketChannel(interaction, 'Store', data, false);
+      // Instead of createTicketChannel, call the dispatcher:
+      const ticketChannel = await createTicket(interaction, 'Store', data, false);
       await interaction.followUp({ 
         content: `Your ticket has been opened. Head over to <#${ticketChannel.id}> to continue.`,
         flags: 64
@@ -277,4 +284,23 @@ export const ButtonHandlerRegistry: { [key: string]: (interaction: ButtonInterac
     await handleAdvancedTicketLog(interaction);
   },
   'reopen_ticket' : handleReopenTicket,
+
+  'ticket_toggle_ping_yes': async (interaction, client) => {
+    await handleTicketToggleButton(interaction);
+  },
+  'ticket_toggle_ping_no': async (interaction, client) => {
+    await handleTicketToggleButton(interaction);
+  },
+  'ticket_toggle_confirm_yes': async (interaction, client) => {
+    await handleTicketToggleConfirm(interaction);
+  },
+  'ticket_toggle_confirm_no': async (interaction, client) => {
+    await handleTicketToggleConfirm(interaction);
+  },
+  'ticket_toggle_cancel': async (interaction, client) => {
+    await handleTicketToggleCancel(interaction);
+  },
+  'close_thread': handleCloseThread,
+  'reopen_thread': handleReopenThread
+  
 };

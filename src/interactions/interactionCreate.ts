@@ -73,19 +73,7 @@ export async function registerInteractions(client: Client, interaction: Interact
     }
     return;
   }
-  // Handle role select menus
-  if (interaction.isRoleSelectMenu()) {
-    const { RoleSelectHandlers } = await import('../registries/DropdownHandlerRegistry.js');
-    const handlerKey = Object.keys(RoleSelectHandlers).find(prefix =>
-      interaction.customId.startsWith(prefix)
-    );
-    if (handlerKey) {
-      await RoleSelectHandlers[handlerKey](interaction);
-    } else {
-      console.warn(`Unhandled role select interaction: ${interaction.customId}`);
-    }
-    return;
-  }
+  
   
   // Handle string select menus
   if (interaction.isStringSelectMenu()) {

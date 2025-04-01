@@ -1,11 +1,21 @@
-import { ChatInputCommandInteraction, ModalBuilder, TextInputBuilder, ActionRowBuilder, TextInputStyle } from 'discord.js';
+import { 
+  ChatInputCommandInteraction, 
+  ModalBuilder, 
+  TextInputBuilder, 
+  ActionRowBuilder, 
+  TextInputStyle 
+} from 'discord.js';
 import prisma from '../utils/database.js';
 
 export async function handleTicketConfigInstructions(interaction: ChatInputCommandInteraction): Promise<void> {
   const ticketType = interaction.options.getString('tickettype', true);
 
+  if (!interaction.guild) {
+    await interaction.reply({ content: 'Guild not found', ephemeral: true });
+    return;
+  }
+
   // Define which ticket types are allowed to have custom instructions.
-  // (For example, only Store, Alt Appeal, and Partnership are allowed.)
   const allowedTypes = ['Store', 'Alt Appeal', 'Partnership'];
 
   // Query the TicketConfig row for this ticket type.
@@ -15,7 +25,7 @@ export async function handleTicketConfigInstructions(interaction: ChatInputComma
   if (configEntry && !configEntry.allowCustomInstructions) {
     await interaction.reply({ 
       content: `Custom instructions are not supported for ticket type "${ticketType}".`, 
-      ephemeral: true 
+      ephemeral: true,
     });
     return;
   }
@@ -25,7 +35,7 @@ export async function handleTicketConfigInstructions(interaction: ChatInputComma
     if (!allowedTypes.includes(ticketType)) {
       await interaction.reply({ 
         content: `Custom instructions are not supported for ticket type "${ticketType}".`, 
-        ephemeral: true 
+        ephemeral: true,
       });
       return;
     }
@@ -55,5 +65,6 @@ export async function handleTicketConfigInstructions(interaction: ChatInputComma
   const row = new ActionRowBuilder<TextInputBuilder>().addComponents(instructionsInput);
   modal.addComponents(row);
 
+  // IMPORTANT: Do NOT defer the reply if you're going to show a modal.
   await interaction.showModal(modal);
 }
