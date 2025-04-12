@@ -254,16 +254,12 @@ export async function handleCloseTicket(interaction: ButtonInteraction): Promise
     }
     
     // Reset the channel permissions.
-    // 1. Fetch the ticket configuration for the given ticket type.
     const configEntry = await prisma.ticketConfig.findUnique({ where: { ticketType: ticket.ticketType } });
     if (!configEntry || !Array.isArray(configEntry.permissions) || !configEntry.permissions.length) {
       await interaction.followUp({ content: 'No permission configuration found for this ticket type.', ephemeral: true });
       return;
     }
     const allowedRoleIds = configEntry.permissions as string[];
-    // 2. Build fresh permission overwrites:
-    //    - Deny everyone.
-    //    - Allow only the roles from config.
     const guild = channel.guild;
     const newOverwrites: OverwriteResolvable[] = [
       {
@@ -275,7 +271,6 @@ export async function handleCloseTicket(interaction: ButtonInteraction): Promise
         allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages]
       }))
     ];
-    // Update the channel's permission overwrites.
     await channel.edit({ permissionOverwrites: newOverwrites });
     
     // Move the channel to the archived category.
@@ -312,7 +307,6 @@ export async function handleCloseTicket(interaction: ButtonInteraction): Promise
     await interaction.followUp({ content: 'Failed to close ticket.', ephemeral: true });
   }
 }
-
 
 export async function handlePlayerInfo(interaction: any, client: Client): Promise<void> {
   const ticket = await prisma.ticket.findFirst({ where: { channelId: interaction.channel.id } });
@@ -578,7 +572,7 @@ export async function handleClaimTicket(interaction: ModalSubmitInteraction, rea
   try {
     const member = interaction.member as GuildMember;
     if (!member || !member.roles.cache.has(config.staffRoleId)) {
-      await interaction.reply({ content: 'You are not authorized to e tickets.', ephemeral: true });
+      await interaction.reply({ content: 'You are not authorized to claim tickets.', ephemeral: true });
       return;
     }
     await interaction.deferReply({ ephemeral: true });
@@ -595,10 +589,10 @@ export async function handleClaimTicket(interaction: ModalSubmitInteraction, rea
       return;
     }
     const ticketChannel = interaction.channel as TextChannel;
-    const ticketCreator = await interaction.guild?.members.fetch(ticket.userId);
+    // Safely fetch the ticket creator.
+    const ticketCreator = await interaction.guild?.members.fetch(ticket.userId).catch(() => null);
     const nowTs = Math.floor(Date.now() / 1000);
     
-    // Get transcript boundaries.
     const messages = await ticketChannel.messages.fetch({ limit: 100 });
     const sortedMessages = Array.from(messages.values()).sort((a, b) => a.createdTimestamp - b.createdTimestamp);
     const firstMsgId = sortedMessages[0]?.id;
@@ -622,11 +616,11 @@ export async function handleClaimTicket(interaction: ModalSubmitInteraction, rea
     
     const transcriptAttachment = { attachment: transcriptFile, name: `transcript_${ticketChannel.id}.html` };
     const logEmbed = new EmbedBuilder()
-    .setAuthor({
-      name: `${ticket!.ticketType} Ticket`,
-      iconURL: interaction.guild?.iconURL() || ''
-    })
-    .setTitle(`${ticket!.ticketNumber} | ${ticketCreator ? ticketCreator.user.username : ticket!.userId}`)
+      .setAuthor({
+        name: `${ticket.ticketType} Ticket`,
+        iconURL: interaction.guild?.iconURL() || ''
+      })
+      .setTitle(`${ticket.ticketNumber} | ${ticketCreator ? ticketCreator.user.username : ticket.userId}`)
       .setDescription(
         `> Ticket Claimed ➤ <t:${nowTs}:F>\n` +
         `> Claimed By ➤ <@${interaction.user.id}>\n` +
@@ -643,8 +637,16 @@ export async function handleClaimTicket(interaction: ModalSubmitInteraction, rea
     const row = new ActionRowBuilder<ButtonBuilder>().addComponents(advancedButton);
     
     await logChannel.send({ embeds: [logEmbed], files: [transcriptAttachment], components: [row.toJSON()] });
+    
+    // Attempt to DM the ticket creator.
     if (ticketCreator) {
-      await ticketCreator.send({ embeds: [logEmbed], files: [transcriptAttachment], components: [row.toJSON()] });
+      try {
+        // Explicitly create (or retrieve) the DM channel before sending.
+        const dmChannel = ticketCreator.dmChannel || await ticketCreator.createDM();
+        await dmChannel.send({ embeds: [logEmbed], files: [transcriptAttachment], components: [row.toJSON()] });
+      } catch (err) {
+        console.error('Failed to DM ticket creator, ignoring error:', err);
+      }
     }
     
     fs.unlink(transcriptFile, (err) => { if (err) console.error('Error deleting transcript file:', err); });
@@ -659,6 +661,7 @@ export async function handleClaimTicket(interaction: ModalSubmitInteraction, rea
     } catch (e) { /* ignore cleanup errors */ }
   }
 }
+
 export async function handleReopenTicket(interaction: ButtonInteraction): Promise<void> {
   try {
     await interaction.deferReply({ ephemeral: true });
@@ -694,7 +697,7 @@ export async function handleReopenTicket(interaction: ButtonInteraction): Promis
     // Update the ticket status in the database.
     await prisma.ticket.update({
       where: { id: ticket.id },
-      data: { status: 'open' }
+      data: { status: 'reopened' }
     });
     
     // -------------------------------
@@ -706,12 +709,9 @@ export async function handleReopenTicket(interaction: ButtonInteraction): Promis
           const newRow = new ActionRowBuilder<ButtonBuilder>();
           row.components.forEach(comp => {
             if (comp.type === ComponentType.Button) {
-              // Create a mutable ButtonBuilder.
               const button = ButtonBuilder.from(comp);
-              // Access the underlying API property "custom_id"
               const customId = (button.data as any).custom_id;
               console.log('Stored message button custom_id:', customId);
-              // Enable Close and Claim buttons.
               if (customId === 'close_ticket' || customId === 'claim_ticket') {
                 button.setDisabled(false);
               }
@@ -734,7 +734,6 @@ export async function handleReopenTicket(interaction: ButtonInteraction): Promis
             const button = ButtonBuilder.from(comp);
             const customId = (button.data as any).custom_id;
             console.log('Interaction message button custom_id:', customId);
-            // Disable Reopen and Delete buttons.
             if (
               customId === 'reopen_ticket' ||
               customId === 'delete_ticket_manual' ||
@@ -782,7 +781,8 @@ export async function handleDeleteTicketManual(interaction: ModalSubmitInteracti
     }
     
     const ticketChannel = interaction.channel as TextChannel;
-    const ticketCreator = await interaction.guild?.members.fetch(ticket.userId);
+    // Safely fetch the ticket creator; if the user left the guild, this will resolve to null.
+    const ticketCreator = await interaction.guild?.members.fetch(ticket.userId).catch(() => null);
     const nowTs = Math.floor(Date.now() / 1000);
     
     const messages = await ticketChannel.messages.fetch({ limit: 100 });
@@ -808,11 +808,11 @@ export async function handleDeleteTicketManual(interaction: ModalSubmitInteracti
     
     const transcriptAttachment = { attachment: transcriptFile, name: `transcript_${ticketChannel.id}.html` };
     const logEmbed = new EmbedBuilder()
-    .setAuthor({
-      name: `${ticket!.ticketType} Ticket`,
-      iconURL: interaction.guild?.iconURL() || ''
-    })
-    .setTitle(`${ticket!.ticketNumber} | ${ticketCreator ? ticketCreator.user.username : ticket!.userId}`)
+      .setAuthor({
+        name: `${ticket.ticketType} Ticket`,
+        iconURL: interaction.guild?.iconURL() || ''
+      })
+      .setTitle(`${ticket.ticketNumber} | ${ticketCreator ? ticketCreator.user.username : ticket.userId}`)
       .setDescription(
         `> Ticket Deleted ➤ <t:${nowTs}:F>\n` +
         `> Deleted By ➤ <@${interaction.user.id}>\n` +
@@ -820,7 +820,7 @@ export async function handleDeleteTicketManual(interaction: ModalSubmitInteracti
       )
       .setTimestamp();
     
-      const advancedButton = new ButtonBuilder()
+    const advancedButton = new ButtonBuilder()
       .setCustomId(`advanced_ticketLog_${ticket.id}`)
       .setLabel('Advanced')
       .setStyle(ButtonStyle.Danger)
@@ -829,8 +829,14 @@ export async function handleDeleteTicketManual(interaction: ModalSubmitInteracti
     const row = new ActionRowBuilder<ButtonBuilder>().addComponents(advancedButton);
     
     await logChannel.send({ embeds: [logEmbed], files: [transcriptAttachment], components: [row.toJSON()] });
+    
+    // Attempt to DM the ticket creator, but catch errors (user not in guild or DMs closed)
     if (ticketCreator) {
-      await ticketCreator.send({ embeds: [logEmbed], files: [transcriptAttachment], components: [row.toJSON()] });
+      try {
+        await ticketCreator.send({ embeds: [logEmbed], files: [transcriptAttachment], components: [row.toJSON()] });
+      } catch (err) {
+        console.error('Failed to DM ticket creator:', err);
+      }
     }
     
     fs.unlink(transcriptFile, (err) => { if (err) console.error('Error deleting transcript file:', err); });
@@ -857,7 +863,8 @@ export async function handleDeleteTicketAuto(interaction: ButtonInteraction): Pr
     }
     
     const ticketChannel = interaction.channel as TextChannel;
-    const ticketCreator = await interaction.guild?.members.fetch(ticket.userId);
+    // Safely fetch ticket creator.
+    const ticketCreator = await interaction.guild?.members.fetch(ticket.userId).catch(() => null);
     const nowTs = Math.floor(Date.now() / 1000);
     
     const messages = await ticketChannel.messages.fetch({ limit: 100 });
@@ -889,19 +896,19 @@ export async function handleDeleteTicketAuto(interaction: ButtonInteraction): Pr
       : 'Ticket closed due to inactivity (24 hours).';
     
     const logEmbed = new EmbedBuilder()
-        .setAuthor({
-          name: `${ticket!.ticketType} Ticket`,
-          iconURL: interaction.guild?.iconURL() || ''
-        })
-        .setTitle(`${ticket!.ticketNumber} | ${ticketCreator ? ticketCreator.user.username : ticket!.userId}`)
-        .setDescription(
+      .setAuthor({
+        name: `${ticket.ticketType} Ticket`,
+        iconURL: interaction.guild?.iconURL() || ''
+      })
+      .setTitle(`${ticket.ticketNumber} | ${ticketCreator ? ticketCreator.user.username : ticket.userId}`)
+      .setDescription(
         `> Ticket Deleted ➤ <t:${nowTs}:F>\n` +
         `> Deleted By ➤ <@${interaction.user.id}>\n` +
         `> Reason ➤ \`${autoCloseReason}\``
       )
       .setTimestamp();
     
-      const advancedButton = new ButtonBuilder()
+    const advancedButton = new ButtonBuilder()
       .setCustomId(`advanced_ticketLog_${ticket.id}`)
       .setLabel('Advanced')
       .setStyle(ButtonStyle.Danger)
@@ -909,8 +916,14 @@ export async function handleDeleteTicketAuto(interaction: ButtonInteraction): Pr
     const row = new ActionRowBuilder<ButtonBuilder>().addComponents(advancedButton);
     
     await logChannel.send({ embeds: [logEmbed], files: [transcriptAttachment], components: [row.toJSON()] });
+    
+    // DM the ticket creator if possible.
     if (ticketCreator) {
-      await ticketCreator.send({ embeds: [logEmbed], files: [transcriptAttachment], components: [row.toJSON()] });
+      try {
+        await ticketCreator.send({ embeds: [logEmbed], files: [transcriptAttachment], components: [row.toJSON()] });
+      } catch (err) {
+        console.error('Failed to DM ticket creator:', err);
+      }
     }
     
     fs.unlink(transcriptFile, (err) => { if (err) console.error('Error deleting transcript file:', err); });
@@ -924,7 +937,6 @@ export async function handleDeleteTicketAuto(interaction: ButtonInteraction): Pr
     } catch (e) { /* ignore cleanup errors */ }
   }
 }
-
 export async function handleAdvancedTicketLog(interaction: ButtonInteraction): Promise<void> {
   try {
     await interaction.deferReply({ ephemeral: true });
@@ -1014,7 +1026,8 @@ export async function handleClaimCommand(interaction: ChatInputCommandInteractio
       return;
     }
     const ticketChannel = interaction.channel as TextChannel;
-    const ticketCreator = await interaction.guild?.members.fetch(ticket.userId);
+    // Safely fetch the ticket creator.
+    const ticketCreator = await interaction.guild?.members.fetch(ticket.userId).catch(() => null);
     const nowTs = Math.floor(Date.now() / 1000);
     
     // Get transcript boundaries.
@@ -1042,11 +1055,11 @@ export async function handleClaimCommand(interaction: ChatInputCommandInteractio
     const transcriptAttachment = { attachment: transcriptFile, name: `transcript_${ticketChannel.id}.html` };
     const logEmbed = new EmbedBuilder()
       .setAuthor({
-        name: `${ticket!.ticketType} Ticket`,
+        name: `${ticket.ticketType} Ticket`,
         iconURL: interaction.guild?.iconURL() || ''
       })
-      .setTitle(`${ticket!.ticketNumber} | ${ticketCreator ? ticketCreator.user.username : ticket!.userId}`)
-        .setDescription(
+      .setTitle(`${ticket.ticketNumber} | ${ticketCreator ? ticketCreator.user.username : ticket.userId}`)
+      .setDescription(
         `> Ticket Claimed ➤ <t:${nowTs}:F>\n` +
         `> Claimed By ➤ <@${interaction.user.id}>\n` +
         `> Reason ➤ \`${reason}\``
@@ -1062,8 +1075,15 @@ export async function handleClaimCommand(interaction: ChatInputCommandInteractio
     const row = new ActionRowBuilder<ButtonBuilder>().addComponents(advancedButton);
     
     await logChannel.send({ embeds: [logEmbed], files: [transcriptAttachment], components: [row.toJSON()] });
+    
+    // Attempt to DM the ticket creator.
     if (ticketCreator) {
-      await ticketCreator.send({ embeds: [logEmbed], files: [transcriptAttachment], components: [row.toJSON()] });
+      try {
+        const dmChannel = ticketCreator.dmChannel || await ticketCreator.createDM();
+        await dmChannel.send({ embeds: [logEmbed], files: [transcriptAttachment], components: [row.toJSON()] });
+      } catch (err) {
+        console.error('Failed to DM ticket creator, ignoring error:', err);
+      }
     }
     
     fs.unlink(transcriptFile, (err) => { if (err) console.error('Error deleting transcript file:', err); });
@@ -1072,12 +1092,13 @@ export async function handleClaimCommand(interaction: ChatInputCommandInteractio
     await ticketChannel.delete();
     
   } catch (error) {
-    console.error('Error in handleClaimTicket:', error);
+    console.error('Error in handleClaimCommand:', error);
     try {
       await interaction.deleteReply();
     } catch (e) { /* ignore cleanup errors */ }
   }
 }
+
 
 export async function handleCloseCommand(interaction: ChatInputCommandInteraction): Promise<void> {
   try {
