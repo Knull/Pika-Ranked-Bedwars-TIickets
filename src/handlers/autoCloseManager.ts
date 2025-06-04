@@ -29,7 +29,7 @@ export function startAutoCloseManager(client: Client) {
               .setEmoji('🔓')
           );
           await channel.send({ embeds: [autoCloseEmbed], components: [autoCloseRow] });
-          await closeTicketAuto(ticket, channel, 'Ticket closed due to inactivity.');
+          await closeTicketAuto(ticket, channel);
           continue;
         }
       } else if (channel instanceof TextChannel) {
@@ -50,7 +50,7 @@ export function startAutoCloseManager(client: Client) {
               .setEmoji('🔓')
           );
           await channel.send({ embeds: [autoCloseEmbed], components: [autoCloseRow] });
-          await closeTicketAuto(ticket, channel, 'Ticket closed due to inactivity.');
+          await closeTicketAuto(ticket, channel);
           continue;
         }
       }
@@ -58,7 +58,7 @@ export function startAutoCloseManager(client: Client) {
   });
 }
 
-async function closeTicketAuto(ticket: any, channel: TextChannel | ThreadChannel, reason: string) {
+async function closeTicketAuto(ticket: any, channel: TextChannel | ThreadChannel) {
   try {
     // For TextChannels, update the parent category if available.
     const parentCategoryId = getCategoryId(ticket.ticketType, true);
