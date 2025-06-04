@@ -697,7 +697,10 @@ export async function handleReopenTicket(interaction: ButtonInteraction): Promis
     // Update the ticket status in the database.
     await prisma.ticket.update({
       where: { id: ticket.id },
-      data: { status: 'reopened' }
+      data: {
+        status: 'reopened',
+        lastMessageAt: new Date() // reset inactivity timer on reopen
+      }
     });
     
     // -------------------------------
