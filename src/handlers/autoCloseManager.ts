@@ -7,7 +7,9 @@ import { getCategoryId } from '../utils/discordUtils.js';
 export function startAutoCloseManager(client: Client) {
   cron.schedule('*/15 * * * * *', async () => {
     const now = new Date();
-    const tickets = await prisma.ticket.findMany({ where: { status: 'open' } });
+    const tickets = await prisma.ticket.findMany({
+      where: { status: { in: ['open', 'reopened'] } }
+    });
     for (const ticket of tickets) {
       const channel = await client.channels.fetch(ticket.channelId);
       if (!channel || (!(channel instanceof TextChannel) && !(channel instanceof ThreadChannel))) continue;

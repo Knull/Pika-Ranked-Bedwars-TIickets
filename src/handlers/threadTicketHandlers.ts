@@ -378,7 +378,10 @@ export async function handleReopenThread(interaction: ButtonInteraction): Promis
     }
     await prisma.ticket.update({
       where: { id: ticket.id },
-      data: { status: 'open' }
+      data: {
+        status: 'open',
+        lastMessageAt: new Date() // reset inactivity timer on reopen
+      }
     });
 
     // Re-enable the Close button in the stored ticket message.
