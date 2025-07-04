@@ -21,8 +21,31 @@ const logger = winston.createLogger({
 });
 import { RoleSelectCache } from '../utils/roleSelectCache.js';
 import { handleCloseThread, handleReopenThread } from '../handlers/threadTicketHandlers.js';
+
+async function checkBlacklist(interaction: ButtonInteraction): Promise<boolean> {
+  try {
+    const record = await prisma.ticketBlacklist.findUnique({ where: { userId: interaction.user.id } });
+    if (record) {
+      if (record.expiresAt && record.expiresAt < new Date()) {
+        await prisma.ticketBlacklist.delete({ where: { id: record.id } });
+      } else {
+        const msg = 'You are blacklisted from opening tickets.';
+        if (interaction.deferred || interaction.replied) {
+          await interaction.followUp({ content: msg, flags: 64 });
+        } else {
+          await interaction.reply({ content: msg, flags: 64 });
+        }
+        return true;
+      }
+    }
+  } catch (err) {
+    console.error('Error checking blacklist:', err);
+  }
+  return false;
+}
 async function checkTicketLimit(interaction: ButtonInteraction): Promise<boolean> {
   try {
+    if (await checkBlacklist(interaction)) return true;
     const openTickets = await prisma.ticket.findMany({ where: { userId: interaction.user.id, status: 'open' } });
     console.log(`User ${interaction.user.id} has ${openTickets.length} open tickets.`);
     if (openTickets.length >= 2) {
@@ -49,6 +72,7 @@ export const ButtonHandlerRegistry: { [key: string]: (interaction: ButtonInterac
   'create_general': async (interaction, client) => {
   logger.info(`Handling create_general button`);
   try {
+    if (await checkBlacklist(interaction)) return;
     // Immediately check how many open tickets the user has.
     const openTickets = await prisma.ticket.findMany({ 
       where: { userId: interaction.user.id, status: 'open' } 
@@ -102,6 +126,7 @@ export const ButtonHandlerRegistry: { [key: string]: (interaction: ButtonInterac
       console.error("Error deferring interaction in create_store handler:", err);
       return;
     }
+    if (await checkBlacklist(interaction)) return;
     const openTickets = await prisma.ticket.findMany({ where: { userId: interaction.user.id, status: 'open' } });
     console.log(`User ${interaction.user.id} has ${openTickets.length} open tickets.`);
     if (openTickets.length >= 2) {
@@ -140,9 +165,10 @@ export const ButtonHandlerRegistry: { [key: string]: (interaction: ButtonInterac
   'create_partnership': async (interaction, client) => {
   logger.info(`Handling create_partnership button`);
   try {
+    if (await checkBlacklist(interaction)) return;
     // Check the ticket limit immediately.
-    const openTickets = await prisma.ticket.findMany({ 
-      where: { userId: interaction.user.id, status: 'open' } 
+    const openTickets = await prisma.ticket.findMany({
+      where: { userId: interaction.user.id, status: 'open' }
     });
     console.log(`User ${interaction.user.id} has ${openTickets.length} open tickets.`);
     if (openTickets.length >= 2) {

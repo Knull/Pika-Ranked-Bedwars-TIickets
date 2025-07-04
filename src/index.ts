@@ -7,6 +7,7 @@ import prisma from './utils/database.js';  // Import your Prisma client
 import ticketConfigCommand from './slash_commands/ticket-config.js';
 import { setupTicketSystem } from './handlers/ticketHandlers.js';
 import { startAutoCloseManager } from './handlers/autoCloseManager.js';
+import { startBlacklistManager } from './handlers/blacklistManager.js';
 import { registerInteractions } from './interactions/interactionCreate.js';
 import { registerCommands } from './commands/commandHandler.js';
 import { populateTicketConfigs } from './utils/populateTicketConfigs.js';
@@ -50,6 +51,7 @@ client.once('ready', async () => {
   // Run additional startup routines
   await setupTicketSystem(client);
   startAutoCloseManager(client);
+  startBlacklistManager();
   console.log("Client is ready, commands have been set up in memory and Discord.");
 });
 
