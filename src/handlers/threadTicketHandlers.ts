@@ -337,8 +337,14 @@ export async function handleCloseThread(interaction: ButtonInteraction): Promise
       accessTicketButton
     );
 
+    let logLink: string | undefined = undefined;
     if (logChannel) {
-      await logChannel.send({ embeds: [logEmbed], components: [logRow] });
+      const sent = await logChannel.send({ embeds: [logEmbed], components: [logRow] });
+      logLink = `https://discord.com/channels/${interaction.guildId}/${logChannel.id}/${sent.id}`;
+    }
+
+    if (logLink) {
+      await prisma.ticket.update({ where: { id: ticket!.id }, data: { logMessageUrl: logLink } });
     }
 
     // DM the ticket creator with the same log embed.
@@ -601,8 +607,13 @@ export async function handleCloseThreadCommand(interaction: ChatInputCommandInte
       accessTicketButton
     );
 
+    let logLink: string | undefined = undefined;
     if (logChannel) {
-      await logChannel.send({ embeds: [logEmbed], components: [logRow] });
+      const sent = await logChannel.send({ embeds: [logEmbed], components: [logRow] });
+      logLink = `https://discord.com/channels/${interaction.guildId}/${logChannel.id}/${sent.id}`;
+    }
+    if (logLink) {
+      await prisma.ticket.update({ where: { id: ticket!.id }, data: { logMessageUrl: logLink } });
     }
     if (ticketCreator) {
       try {
