@@ -66,8 +66,13 @@ export async function closeThreadTicketCommon(ticket, thread, reason) {
             .setStyle(ButtonStyle.Link)
             .setURL(transcriptUrl);
         const logRow = new ActionRowBuilder().addComponents(advancedButton, accessTicketButton);
+        let logLink = undefined;
         if (logChannel) {
-            await logChannel.send({ embeds: [logEmbed], components: [logRow] });
+            const sent = await logChannel.send({ embeds: [logEmbed], components: [logRow] });
+            logLink = `https://discord.com/channels/${thread.guild.id}/${logChannel.id}/${sent.id}`;
+        }
+        if (logLink) {
+            await prisma.ticket.update({ where: { id: ticket.id }, data: { logMessageUrl: logLink } });
         }
         // DM the ticket creator with the same log embed.
         if (ticketCreator) {

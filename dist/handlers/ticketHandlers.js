@@ -567,7 +567,14 @@ export async function handleClaimTicket(interaction, reason, client) {
             .setStyle(ButtonStyle.Danger)
             .setEmoji('⚙️');
         const row = new ActionRowBuilder().addComponents(advancedButton);
-        await logChannel.send({ embeds: [logEmbed], files: [transcriptAttachment], components: [row.toJSON()] });
+        let logLink = undefined;
+        if (logChannel) {
+            const sent = await logChannel.send({ embeds: [logEmbed], files: [transcriptAttachment], components: [row.toJSON()] });
+            logLink = `https://discord.com/channels/${interaction.guildId}/${logChannel.id}/${sent.id}`;
+        }
+        if (logLink) {
+            await prisma.ticket.update({ where: { id: ticket.id }, data: { logMessageUrl: logLink } });
+        }
         // Attempt to DM the ticket creator.
         if (ticketCreator) {
             try {
@@ -741,7 +748,14 @@ export async function handleDeleteTicketManual(interaction, reason, client) {
             .setStyle(ButtonStyle.Danger)
             .setEmoji('⚙️');
         const row = new ActionRowBuilder().addComponents(advancedButton);
-        await logChannel.send({ embeds: [logEmbed], files: [transcriptAttachment], components: [row.toJSON()] });
+        let logLink = undefined;
+        if (logChannel) {
+            const sent = await logChannel.send({ embeds: [logEmbed], files: [transcriptAttachment], components: [row.toJSON()] });
+            logLink = `https://discord.com/channels/${interaction.guildId}/${logChannel.id}/${sent.id}`;
+        }
+        if (logLink) {
+            await prisma.ticket.update({ where: { id: ticket.id }, data: { logMessageUrl: logLink } });
+        }
         // Attempt to DM the ticket creator, but catch errors (user not in guild or DMs closed)
         if (ticketCreator) {
             try {
@@ -816,7 +830,14 @@ export async function handleDeleteTicketAuto(interaction) {
             .setStyle(ButtonStyle.Danger)
             .setEmoji('⚙️');
         const row = new ActionRowBuilder().addComponents(advancedButton);
-        await logChannel.send({ embeds: [logEmbed], files: [transcriptAttachment], components: [row.toJSON()] });
+        let logLink = undefined;
+        if (logChannel) {
+            const sent = await logChannel.send({ embeds: [logEmbed], files: [transcriptAttachment], components: [row.toJSON()] });
+            logLink = `https://discord.com/channels/${interaction.guildId}/${logChannel.id}/${sent.id}`;
+        }
+        if (logLink) {
+            await prisma.ticket.update({ where: { id: ticket.id }, data: { logMessageUrl: logLink } });
+        }
         // DM the ticket creator if possible.
         if (ticketCreator) {
             try {
@@ -951,7 +972,14 @@ export async function handleClaimCommand(interaction, reason, client) {
             .setStyle(ButtonStyle.Danger)
             .setEmoji('⚙️');
         const row = new ActionRowBuilder().addComponents(advancedButton);
-        await logChannel.send({ embeds: [logEmbed], files: [transcriptAttachment], components: [row.toJSON()] });
+        let logLink = undefined;
+        if (logChannel) {
+            const sent = await logChannel.send({ embeds: [logEmbed], files: [transcriptAttachment], components: [row.toJSON()] });
+            logLink = `https://discord.com/channels/${interaction.guildId}/${logChannel.id}/${sent.id}`;
+        }
+        if (logLink) {
+            await prisma.ticket.update({ where: { id: ticket.id }, data: { logMessageUrl: logLink } });
+        }
         // Attempt to DM the ticket creator.
         if (ticketCreator) {
             try {

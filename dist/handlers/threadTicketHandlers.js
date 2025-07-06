@@ -280,8 +280,13 @@ export async function handleCloseThread(interaction) {
             .setStyle(ButtonStyle.Link)
             .setURL(transcriptUrl);
         const logRow = new ActionRowBuilder().addComponents(advancedButton, accessTicketButton);
+        let logLink = undefined;
         if (logChannel) {
-            await logChannel.send({ embeds: [logEmbed], components: [logRow] });
+            const sent = await logChannel.send({ embeds: [logEmbed], components: [logRow] });
+            logLink = `https://discord.com/channels/${interaction.guildId}/${logChannel.id}/${sent.id}`;
+        }
+        if (logLink) {
+            await prisma.ticket.update({ where: { id: ticket.id }, data: { logMessageUrl: logLink } });
         }
         // DM the ticket creator with the same log embed.
         if (ticketCreator) {
@@ -519,8 +524,13 @@ export async function handleCloseThreadCommand(interaction) {
             .setStyle(ButtonStyle.Link)
             .setURL(transcriptUrl);
         const logRow = new ActionRowBuilder().addComponents(advancedButton, accessTicketButton);
+        let logLink = undefined;
         if (logChannel) {
-            await logChannel.send({ embeds: [logEmbed], components: [logRow] });
+            const sent = await logChannel.send({ embeds: [logEmbed], components: [logRow] });
+            logLink = `https://discord.com/channels/${interaction.guildId}/${logChannel.id}/${sent.id}`;
+        }
+        if (logLink) {
+            await prisma.ticket.update({ where: { id: ticket.id }, data: { logMessageUrl: logLink } });
         }
         if (ticketCreator) {
             try {
