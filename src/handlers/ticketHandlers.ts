@@ -400,6 +400,15 @@ export async function handlePlayerInfo(interaction: any, client: Client): Promis
 }
 
 export async function handleAddCommand(interaction: CommandInteraction): Promise<void> {
+  const member = interaction.member as GuildMember;
+  if (!member || !member.roles.cache.has(config.staffRoleId)) {
+    await interaction.reply({
+      content: 'You are not authorized to add users or roles.',
+      ephemeral: true
+    });
+    return;
+  }
+
   // Defer publicly.
   await interaction.deferReply({ ephemeral: false });
   const mentionable = (interaction.options as any).getMentionable('mentionable');
@@ -484,6 +493,15 @@ export async function handleAddCommand(interaction: CommandInteraction): Promise
 
 // Adjusted handleRemoveCommand to work in both text channels and threads.
 export async function handleRemoveCommand(interaction: CommandInteraction): Promise<void> {
+  const member = interaction.member as GuildMember;
+  if (!member || !member.roles.cache.has(config.staffRoleId)) {
+    await interaction.reply({
+      content: 'You are not authorized to remove users or roles.',
+      ephemeral: true
+    });
+    return;
+  }
+
   // Defer publicly.
   await interaction.deferReply({ ephemeral: false });
   const mentionable = (interaction.options as any).getMentionable('mentionable');
