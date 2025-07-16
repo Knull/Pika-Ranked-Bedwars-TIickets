@@ -1,4 +1,5 @@
 // File: src/index.ts
+// ready 
 import { Client, GatewayIntentBits, Collection } from 'discord.js';
 import { ExtendedClient, CommandModule } from './types/ExtendedClient.js';
 import config from './config/config.js';
