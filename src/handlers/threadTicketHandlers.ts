@@ -18,9 +18,6 @@ import prisma from '../utils/database.js';
 import { shouldPingRoles } from '../utils/ticketModeSettings.js';
 import { getCategoryId } from '../utils/discordUtils.js';
 
-//
-// Ticket creation – adjusted for pings enabled vs disabled
-//
 export async function createTicketThread(
   interaction: any,
   ticketType: string,
@@ -37,14 +34,11 @@ export async function createTicketThread(
   if (shouldDefer && !interaction.deferred) {
     await interaction.deferReply({ ephemeral: true });
   }
-
-  // Fetch ticket counter.
   const settings = await prisma.ticketSettings.findUnique({ where: { id: 1 } });
   let ticketCounter = settings?.ticketCounter || 1;
   const prefix = '┃';
   const username = user.username.split(/[\s\W_]+/)[0] || user.username;
 
-  // Determine naming based on priority.
   const isSpecial = interaction.member.roles.cache.has(config.boosterRoleId);
   let threadName: string;
   if (isSpecial) {
@@ -53,7 +47,6 @@ export async function createTicketThread(
     threadName = `🟢${username}・${ticketType}`;
   }
 
-  // Determine effective ticket type.
   let effectiveTicketType = ticketType;
   if (ticketType === 'Ban Appeal') {
     if (data.banType === 'screenshare_appeal') {
@@ -63,14 +56,13 @@ export async function createTicketThread(
     }
   }
 
-  // Fetch configuration.
   const configEntry = await prisma.ticketConfig.findUnique({ where: { ticketType: effectiveTicketType } });
   if (!configEntry || !Array.isArray(configEntry.permissions) || !configEntry.permissions.length) {
     throw new Error(`No permissions found in DB for ticketType ${effectiveTicketType}`);
   }
   const allowedRoleIds = configEntry.permissions as string[];
 
-  // Build permission overwrites.
+  // stopped using
   const permissionOverwrites: OverwriteResolvable[] = [
     {
       id: guild.id,
@@ -82,20 +74,17 @@ export async function createTicketThread(
     })),
   ];
 
-  // Get parent category from a helper if needed.
   const parentCategoryId = getCategoryId(effectiveTicketType);
   if (!parentCategoryId) {
     throw new Error(`Parent category not set for ${effectiveTicketType}`);
   }
 
-  // Always use the ticketsChannelId for creating private threads.
   const baseChannel = await guild.channels.fetch(config.ticketsChannelId);
   if (!baseChannel || !baseChannel.isTextBased()) {
     throw new Error('Base channel not found or invalid.');
   }
   const textChannel = baseChannel as TextChannel;
 
-  // Create a private thread in the base channel.
   const thread = await textChannel.threads.create({
     name: threadName,
     autoArchiveDuration: 1440, // 24 hours
@@ -103,12 +92,10 @@ export async function createTicketThread(
     reason: 'Ticket creation (private thread)',
   });
 
-  // Send welcome message inside the private thread.
   let rolePings = allowedRoleIds.map(roleId => `||<@&${roleId}>||`).join(' ');
   const welcomeMessage = `Hey <@${user.id}> 👋! ${rolePings}\n\`\`\`Please wait patiently for staff to reply. If no one responds, you may ping staff. Thanks!\`\`\``;
   await thread.send(welcomeMessage);
 
-  // Build the main ticket embed.
   let embed = new EmbedBuilder().setColor(0x0099FF);
   if (ticketType === 'Ban Appeal') {
     embed.setAuthor({ name: `${effectiveTicketType} Ticket`, iconURL: user.displayAvatarURL() });
@@ -140,7 +127,6 @@ export async function createTicketThread(
     embed.setTitle(data.title).setDescription(`\`\`\`${data.description}\`\`\``);
   }
 
-  // Build an action row with a close button.
   const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
       .setCustomId('close_thread')
@@ -150,7 +136,6 @@ export async function createTicketThread(
   );
   const ticketMsg = await thread.send({ embeds: [embed], components: [row] });
 
-  // If it's a Partnership ticket, send a separate Partnership Requirements embed.
   if (ticketType === 'Partnership') {
     const partInfo =
       configEntry.useCustomInstructions && configEntry.instructions
@@ -168,7 +153,6 @@ export async function createTicketThread(
     await sentMsg.pin().catch(e => console.error('Error pinning partnership embed:', e));
   }
 
-  // Now, send a public announcement in ticketsChannelId2.
   let outsideMsgId: string | undefined = undefined;
   const announcementChannel = await guild.channels.fetch(config.ticketsChannelId2);
   if (announcementChannel && announcementChannel.isTextBased()) {
@@ -199,7 +183,6 @@ export async function createTicketThread(
     outsideMsgId = announcementMsg.id;
   }
 
-  // Create the ticket record, storing outsideMessageId if available.
   await prisma.ticket.create({
     data: {
       ticketNumber: ticketCounter,
@@ -213,7 +196,6 @@ export async function createTicketThread(
     },
   });
 
-  // Increment the ticket counter.
   await prisma.ticketSettings.update({
     where: { id: 1 },
     data: { ticketCounter: ticketCounter + 1 },
@@ -226,12 +208,7 @@ export async function createTicketThread(
   }
   return thread;
 }
-
-
-
-//
-// Ticket closing – adjusted
-//
+// defer all updates
 export async function handleCloseThread(interaction: ButtonInteraction): Promise<void> {
   try {
     await interaction.deferReply({ ephemeral: true });
@@ -242,21 +219,17 @@ export async function handleCloseThread(interaction: ButtonInteraction): Promise
     }
     const thread = channel as ThreadChannel;
 
-    // Lock the thread.
     await thread.setLocked(true, 'Ticket closed.');
 
-    // For non-priority tickets, update thread name: change green (🟢) to red (🔴).
     if (thread.name.startsWith('🟢')) {
       const newName = '🔴' + thread.name.slice(2);
       await thread.setName(newName);
     }
 
-    // Remove the closer from the thread so they leave.
     await thread.members.remove(interaction.user.id).catch(err => {
       console.error("Error removing ticket closer from thread:", err);
     });
 
-    // Build closure embed with Reopen button explicitly enabled.
     const closeEmbed = new EmbedBuilder()
       .setColor(0xffff00)
       .setDescription(`> 🔒 Ticket closed by <@${interaction.user.id}>`);
@@ -269,7 +242,6 @@ export async function handleCloseThread(interaction: ButtonInteraction): Promise
     );
     await thread.send({ embeds: [closeEmbed], components: [row] });
 
-    // If an outside announcement message exists, update its status.
     const ticket = await prisma.ticket.findFirst({ where: { channelId: thread.id } });
     if (ticket && ticket.outsideMessageId) {
       const baseChannel = await interaction.guild?.channels.fetch(config.ticketsChannelId2);
@@ -277,7 +249,6 @@ export async function handleCloseThread(interaction: ButtonInteraction): Promise
         const textChannel = baseChannel as TextChannel;
         try {
           const outsideMsg = await textChannel.messages.fetch(ticket.outsideMessageId);
-          // Replace the status text with "Status: 🔴 Closed"
           const newContent = outsideMsg.content.replace(/Status:\s*[^\n]+/, "Status: 🔴 Closed");
           await outsideMsg.edit({ content: newContent });
         } catch (err) {
@@ -286,13 +257,11 @@ export async function handleCloseThread(interaction: ButtonInteraction): Promise
       }
     }
 
-    // Update ticket record: mark closed and store transcript URL.
     await prisma.ticket.updateMany({
       where: { channelId: thread.id },
       data: { status: 'closed', transcriptUrl: thread.url }
     });
 
-    // --- Log Embed: Send to transcript channel and DM the ticket creator ---
     let ticketCreator: any = null;
     try {
       ticketCreator = await interaction.guild?.members.fetch(ticket!.userId);
@@ -347,7 +316,6 @@ export async function handleCloseThread(interaction: ButtonInteraction): Promise
       await prisma.ticket.update({ where: { id: ticket!.id }, data: { logMessageUrl: logLink } });
     }
 
-    // DM the ticket creator with the same log embed.
     if (ticketCreator) {
       try {
         await ticketCreator.send({ embeds: [logEmbed], components: [logRow] });
@@ -355,8 +323,6 @@ export async function handleCloseThread(interaction: ButtonInteraction): Promise
         console.error("Error sending DM to ticket creator:", dmError);
       }
     }
-    // --- End new functionality ---
-
     await interaction.followUp({ content: 'Ticket has been closed (thread locked).', ephemeral: true });
   } catch (error) {
     console.error('Error in handleCloseThread:', error);
@@ -373,10 +339,8 @@ export async function handleReopenThread(interaction: ButtonInteraction): Promis
     }
     const thread = channel as ThreadChannel;
 
-    // Unlock the thread.
     await thread.setLocked(false, 'Ticket reopened.');
 
-    // Update ticket record to open.
     const ticket = await prisma.ticket.findFirst({ where: { channelId: thread.id } });
     if (!ticket) {
       await interaction.followUp({ content: 'Ticket record not found.', ephemeral: true });
@@ -389,8 +353,6 @@ export async function handleReopenThread(interaction: ButtonInteraction): Promis
         lastMessageAt: new Date() // reset inactivity timer on reopen
       }
     });
-
-    // Re-enable the Close button in the stored ticket message.
     try {
       const storedMsg = await thread.messages.fetch(ticket.ticketMessageId!);
       const updatedComponents = storedMsg.components.map(row => {
@@ -407,8 +369,6 @@ export async function handleReopenThread(interaction: ButtonInteraction): Promis
     } catch (err) {
       console.error('Error updating stored ticket message:', err);
     }
-
-    // Disable the Reopen button on the triggering message.
     try {
       const currentComponents = interaction.message.components.map(row => {
         const newRow = row.toJSON();
@@ -424,14 +384,10 @@ export async function handleReopenThread(interaction: ButtonInteraction): Promis
     } catch (err) {
       console.error('Error disabling reopen button:', err);
     }
-
-    // For non-priority tickets, update thread name: change red (🔴) back to green (🟢).
     if (thread.name.startsWith('🔴')) {
       const newName = '🟢' + thread.name.slice(2);
       await thread.setName(newName);
     }
-
-    // If an outside announcement exists, update its status to open.
     if (ticket.outsideMessageId) {
       const baseChannel = await interaction.guild?.channels.fetch(config.ticketsChannelId2);
       if (baseChannel && baseChannel.isTextBased()) {
@@ -446,15 +402,11 @@ export async function handleReopenThread(interaction: ButtonInteraction): Promis
       }
     }
 
-    // Send a notification in the thread.
     const reopenEmbed = new EmbedBuilder()
       .setColor(0x00ff00)
       .setDescription(`> Ticket Reopened by <@${interaction.user.id}>`);
     const reopenMessage = `<@${ticket.userId}>, your ticket has been reopened by <@${interaction.user.id}>.\n**Ticket Reopened**`;
     await thread.send({ content: reopenMessage, embeds: [reopenEmbed] });
-
-    // --- New functionality: Send a new public announcement for the reopened ticket ---
-    // We'll determine if it's a priority ticket by checking if the thread name includes the priority indicator.
     const isPriority = thread.name.includes('🔥');
     const announcementChannel = await interaction.guild?.channels.fetch(config.ticketsChannelId2);
     if (announcementChannel && announcementChannel.isTextBased()) {
@@ -482,8 +434,6 @@ export async function handleReopenThread(interaction: ButtonInteraction): Promis
       const announcementRow = new ActionRowBuilder<ButtonBuilder>().addComponents(accessButton);
       await announceChannel.send({ content: announcementContent, components: [announcementRow] });
     }
-    // --- End new functionality ---
-
     await interaction.followUp({ content: 'Ticket has been reopened.', ephemeral: true });
   } catch (error) {
     console.error('Error in handleReopenThread:', error);
@@ -499,31 +449,21 @@ export async function handleCloseThreadCommand(interaction: ChatInputCommandInte
       return;
     }
     const thread = channel as ThreadChannel;
-
-    // Lock the thread.
     await thread.setLocked(true, 'Ticket closed.');
-
-    // Update thread name: change green (🟢) to red (🔴) if applicable.
     if (thread.name.startsWith('🟢')) {
       const newName = '🔴' + thread.name.slice(2);
       await thread.setName(newName);
     }
-
-    // Get the ticket record.
     const ticket = await prisma.ticket.findFirst({ where: { channelId: thread.id } });
     if (ticket) {
-      // Build a list of user IDs to remove: ticket creator + any added users.
       const usersToRemove: string[] = [];
       if (ticket.userId) {
         usersToRemove.push(ticket.userId);
       }
       if (ticket.added_user && Array.isArray(ticket.added_user)) {
-        // Filter the array to include only strings
         const addedUsers = ticket.added_user.filter((user: unknown): user is string => typeof user === 'string');
         usersToRemove.push(...addedUsers);
       }
-
-      // Remove all users concurrently.
       await Promise.all(
         usersToRemove.map(userId =>
           thread.members.remove(userId).catch(err => {
@@ -532,8 +472,6 @@ export async function handleCloseThreadCommand(interaction: ChatInputCommandInte
         )
       );
     }
-
-    // Build closure embed with Reopen button enabled.
     const closeEmbed = new EmbedBuilder()
       .setColor(0xffff00)
       .setDescription(`> 🔒 Ticket closed by <@${interaction.user.id}>`);
@@ -545,8 +483,6 @@ export async function handleCloseThreadCommand(interaction: ChatInputCommandInte
         .setDisabled(false)
     );
     await thread.send({ embeds: [closeEmbed], components: [row] });
-
-    // If an outside announcement message exists, update its status.
     if (ticket && ticket.outsideMessageId) {
       const baseChannel = await interaction.guild?.channels.fetch(config.ticketsChannelId2);
       if (baseChannel && baseChannel.isTextBased()) {
@@ -560,14 +496,10 @@ export async function handleCloseThreadCommand(interaction: ChatInputCommandInte
         }
       }
     }
-
-    // Update ticket record: mark closed and store transcript URL.
     await prisma.ticket.updateMany({
       where: { channelId: thread.id },
       data: { status: 'closed', transcriptUrl: thread.url }
     });
-
-    // --- Log Embed: Send to transcript channel and DM the ticket creator ---
     let ticketCreator: any = null;
     try {
       ticketCreator = await interaction.guild?.members.fetch(ticket!.userId);
@@ -622,8 +554,6 @@ export async function handleCloseThreadCommand(interaction: ChatInputCommandInte
         console.error("Error sending DM to ticket creator:", dmError);
       }
     }
-    // --- End log embed functionality ---
-
     await interaction.followUp({ content: 'Ticket has been closed (thread locked).', ephemeral: true });
   } catch (error) {
     console.error('Error in handleCloseThreadCommand:', error);

@@ -27,7 +27,6 @@ import {
     );
   
   async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
-    // Fetch allowed role IDs from the database.
     const allowedRoleIds = await getAllowedRoleIds();
   
     if (!interaction.member || !('roles' in interaction.member)) {
@@ -83,10 +82,9 @@ import {
   }
   
   /**
-   * Handles the initial button click for the ping query.
+   * Handles the initial button click for the ping query
    */
   export async function handleTicketToggleButton(interaction: ButtonInteraction): Promise<void> {
-    // Fetch allowed role IDs.
     const allowedRoleIds = await getAllowedRoleIds();
     if (!interaction.member || !('roles' in interaction.member)) {
       await interaction.reply({ content: 'You are not authorized to perform this action.', ephemeral: true });

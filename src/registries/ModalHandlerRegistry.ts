@@ -30,7 +30,6 @@ export const modalRegistry: { [key: string]: (interaction: ModalSubmitInteractio
   'universal_ticket_modal': async (interaction: ModalSubmitInteraction) => {
   logger.info(`Modal submitted: ${interaction.customId}`);
   try {
-    // Defer the reply so that subsequent editReply calls succeed.
     await interaction.deferReply({ flags: 64 });
   } catch (e) {
     console.error("Error deferring modal interaction:", e);
@@ -58,20 +57,15 @@ export const modalRegistry: { [key: string]: (interaction: ModalSubmitInteractio
     // Expect customId in the format "config_instructions_{ticketType}"
     const ticketType = interaction.customId.replace('config_instructions_', '');
     const newInstructions = interaction.fields.getTextInputValue('instructions');
-    
-    // Determine a preview title. You can adjust this logic as needed.
     const previewTitle = `${ticketType} Ticket Preview`;
 
-    // Store the new instructions and preview title in the cache.
     instructionsCache.set(`${interaction.user.id}_${ticketType}`, { instructions: newInstructions, previewTitle });
 
-    // Build a preview embed using the new instructions.
     const previewEmbed = new EmbedBuilder()
       .setColor(ticketType === 'Partnership' ? 0xff0000 : 0x0099FF)
       .setTitle(previewTitle)
       .setDescription(`\`\`\`\n${newInstructions}\n\`\`\``);
 
-    // Create confirmation and cancellation buttons.
     const confirmButton = new ButtonBuilder()
       .setCustomId(`confirm_instructions_${ticketType}`)
       .setLabel('Confirm')

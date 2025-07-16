@@ -15,13 +15,10 @@ export async function handleTicketConfigInstructions(interaction: ChatInputComma
     return;
   }
 
-  // Define which ticket types are allowed to have custom instructions.
   const allowedTypes = ['Store', 'Alt Appeal', 'Partnership'];
 
-  // Query the TicketConfig row for this ticket type.
   let configEntry = await prisma.ticketConfig.findUnique({ where: { ticketType } });
 
-  // If an entry exists and custom instructions are not allowed, reply with an error.
   if (configEntry && !configEntry.allowCustomInstructions) {
     await interaction.reply({ 
       content: `Custom instructions are not supported for ticket type "${ticketType}".`, 
@@ -30,7 +27,6 @@ export async function handleTicketConfigInstructions(interaction: ChatInputComma
     return;
   }
 
-  // If no entry exists, decide based on allowedTypes:
   if (!configEntry) {
     if (!allowedTypes.includes(ticketType)) {
       await interaction.reply({ 
@@ -39,7 +35,6 @@ export async function handleTicketConfigInstructions(interaction: ChatInputComma
       });
       return;
     }
-    // Create a default config entry for allowed types.
     configEntry = await prisma.ticketConfig.create({
       data: {
         ticketType,
@@ -50,7 +45,6 @@ export async function handleTicketConfigInstructions(interaction: ChatInputComma
     });
   }
 
-  // Now that we know custom instructions are allowed, show the modal pre-populated with current instructions.
   const currentInstructions = configEntry.instructions || '';
   const modal = new ModalBuilder()
     .setCustomId(`config_instructions_${ticketType}`)
@@ -65,6 +59,5 @@ export async function handleTicketConfigInstructions(interaction: ChatInputComma
   const row = new ActionRowBuilder<TextInputBuilder>().addComponents(instructionsInput);
   modal.addComponents(row);
 
-  // IMPORTANT: Do NOT defer the reply if you're going to show a modal.
   await interaction.showModal(modal);
 }

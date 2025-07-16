@@ -5,18 +5,11 @@ import config from '../config/config.js';
 
 export async function closeThreadTicketCommon(ticket: any, thread: ThreadChannel, reason: string): Promise<void> {
   try {
-    // Lock the thread.
     await thread.setLocked(true, reason);
-
-    // Update thread name (if non‑priority) from green (🟢) to red (🔴).
     if (thread.name.startsWith('🟢')) {
       const newName = '🔴' + thread.name.slice(2);
       await thread.setName(newName);
     }
-
-    // (Since auto‑close has no "closer", we skip removing a user.)
-
-    // If an outside announcement message exists, update its status.
     if (ticket.outsideMessageId) {
       const baseChannel = await thread.guild.channels.fetch(config.ticketsChannelId2);
       if (baseChannel && baseChannel.isTextBased()) {
@@ -31,13 +24,11 @@ export async function closeThreadTicketCommon(ticket: any, thread: ThreadChannel
       }
     }
 
-    // Update the ticket record: mark closed and store transcript URL.
     await prisma.ticket.updateMany({
       where: { channelId: thread.id },
       data: { status: 'closed', transcriptUrl: thread.url }
     });
 
-    // Build log embed.
     let ticketCreator: any = null;
     try {
       ticketCreator = await thread.guild.members.fetch(ticket.userId);
@@ -90,7 +81,7 @@ export async function closeThreadTicketCommon(ticket: any, thread: ThreadChannel
       await prisma.ticket.update({ where: { id: ticket.id }, data: { logMessageUrl: logLink } });
     }
 
-    // DM the ticket creator with the same log embed.
+    // DM the ticket creator with the log embed
     if (ticketCreator) {
       try {
         await ticketCreator.send({ embeds: [logEmbed], components: [logRow] });

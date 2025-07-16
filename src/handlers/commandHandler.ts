@@ -6,9 +6,9 @@ export async function handleCommand(interaction: CommandInteraction, client: Cli
     const { handleAddCommand } = await import('../handlers/ticketHandlers.js');
     await handleAddCommand(interaction);
   }
-  // Other commands (close, claim, remove, etc.) can be handled here.
+  // doesn't handle commands im just too lazy to move add
 }
 
 export function registerCommands(client: Client) {
-  // Optionally register slash commands with Discord if needed.
+  // if you're seeing this, you are a nerd 🤓🤓🤓🤓
 }

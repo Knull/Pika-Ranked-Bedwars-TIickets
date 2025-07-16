@@ -14,7 +14,6 @@ import prisma from '../utils/database.js';
 import { createTicketChannel, handlePlayerInfo } from '../handlers/ticketHandlers.js';
 import { createTicket } from '../handlers/ticketCreationDispatcher.js';
 
-// Show the alt appeal modal (uses StringSelectMenuInteraction).
 export function showAppealAltModal(interaction: StringSelectMenuInteraction): void {
   const modal = new ModalBuilder()
     .setCustomId('appeal_alt_modal')
@@ -48,7 +47,7 @@ export async function handleAppealAltModal(interaction: ModalSubmitInteraction):
       return;
     }
     
-    // Upsert player's profile data.
+    // Upsert player's profile data
     await prisma.playerProfile.upsert({
       where: { discordUserId: interaction.user.id },
       update: {
@@ -70,16 +69,15 @@ export async function handleAppealAltModal(interaction: ModalSubmitInteraction):
       }
     });
     
-    // Fetch Alt Appeal instructions from TicketConfig.
     const configEntry = await prisma.ticketConfig.findUnique({ where: { ticketType: "Alt Appeal" } });
     const instructions = configEntry && configEntry.useCustomInstructions && configEntry.instructions
       ? configEntry.instructions
       : "Please provide your appeal details to verify your identity.";
     
-    // Use "Alt Appeal" as the ticket type.
+    // Use "Alt Appeal" as the ticket type
     const ticketChannel = await createTicket(interaction, "Alt Appeal", { title: "Alt Appeal Ticket", description: instructions }, false);
     
-    // Send player info embed.
+    // Send player info embed
     await handlePlayerInfo(
       { channel: ticketChannel, user: interaction.user, member: interaction.member, guild: interaction.guild },
       interaction.client

@@ -22,7 +22,6 @@ async function execute(interaction: ChatInputCommandInteraction) {
     return;
   }
 
-  // Retrieve the reason from the options.
   const reason = interaction.options.getString('reason', true);
 
   try {
@@ -32,7 +31,6 @@ async function execute(interaction: ChatInputCommandInteraction) {
     await handleClaimCommand(interaction, reason, interaction.client);
   } catch (error) {
     console.error('Error executing claim command:', error);
-    // If the handler already deferred/replied, use followUp; otherwise reply.
     if (!interaction.deferred && !interaction.replied) {
       await interaction.reply({ content: 'An error occurred while claiming the ticket.', ephemeral: true });
     } else {

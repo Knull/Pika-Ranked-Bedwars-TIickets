@@ -9,7 +9,6 @@ export function showAppealReasonModal(interaction: any, appealType: 'appeal_mute
     .setCustomId(`appeal_reason_modal_${appealType}`)
     .setTitle(appealType === 'appeal_mute' ? 'Mute Appeal' : 'Strike Appeal');
 
-  // Use a short label within 45 characters:
   const label = appealType === 'appeal_mute'
     ? 'Why should you be unmuted?'
     : 'Why should we revert your strike?';
@@ -48,10 +47,9 @@ export function showBanAppealModal(interaction: any, banType: 'screenshare_appea
  * Handler for the Mute/Strike Appeal modal submission.
  */
 export async function handleAppealReasonModal(interaction: ModalSubmitInteraction): Promise<void> {
-  // Immediately defer the reply so we can later edit it.
   await interaction.deferReply({ ephemeral: true });
 
-  // Extract the appeal type from the custom ID.
+  // Extract the appeal type from the custom ID
   // Expected customId format: "appeal_reason_modal_appeal_strike" or "appeal_reason_modal_appeal_mute"
   const customId = interaction.customId;
   const appealType = customId.split('_').slice(-2).join('_'); // yields "appeal_strike" or "appeal_mute"
@@ -62,7 +60,7 @@ export async function handleAppealReasonModal(interaction: ModalSubmitInteractio
     return;
   }
 
-  // Determine the ticket type based on appeal type.
+  // Determine the ticket type based on appeal type
   const ticketType = appealType === 'appeal_mute' ? 'Mute Appeal' : 'Strike Appeal';
 
   // Use the dispatcher to create the ticket.
@@ -70,10 +68,9 @@ export async function handleAppealReasonModal(interaction: ModalSubmitInteractio
 }
 
 /**
- * Handler for the Ban Appeal modal submission.
+ * Handler for the Ban Appeal modal submission
  */
 export async function handleBanAppealModal(interaction: ModalSubmitInteraction): Promise<void> {
-  // Immediately defer the reply.
   await interaction.deferReply({ ephemeral: true });
 
   // Extract ban type from the custom ID.
@@ -87,7 +84,7 @@ export async function handleBanAppealModal(interaction: ModalSubmitInteraction):
     return;
   }
 
-  // For ban appeals, we use "Ban Appeal" as the base ticket type.
+  // For ban appeals, I use "Ban Appeal" as the base ticket type.
   const ticketType = "Ban Appeal";
   await createTicket(interaction, ticketType, { title: ticketType, description: reason, banType }, true);
 }

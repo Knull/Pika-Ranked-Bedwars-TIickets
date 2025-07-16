@@ -1,3 +1,4 @@
+// this file has been commented out in index.js and there is a reason. The first time you start the bot un-comment this file. This is just to populate the database to ensure any bugs that stem from this don't occur. Comment this file out immediately if you plan to restart the bot.
 import prisma from './database.js';
 
 export async function populateTicketConfigs(): Promise<void> {

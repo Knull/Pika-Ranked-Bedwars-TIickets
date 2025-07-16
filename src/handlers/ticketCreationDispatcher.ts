@@ -9,7 +9,7 @@ import { createTicketThread } from './threadTicketHandlers.js';
  * otherwise, it calls createTicketChannel.
  *
  * @param interaction - The interaction object triggering ticket creation.
- * @param ticketType - The type of ticket (e.g., 'General', 'Store').
+ * @param ticketType - The type of ticket ().
  * @param data - Object with title, description (and optional banType).
  * @param shouldDefer - Whether to defer the reply.
  * @returns The created ticket channel or thread.

@@ -1,3 +1,4 @@
+# do not change this one bit unless you know what you're doing
 import discord
 import chat_exporter
 import argparse
@@ -21,7 +22,6 @@ async def export_chat_range(token, channel_id, output_file, start_msg_id, end_ms
             return
         
         try:
-            # Fetch the boundary messages concurrently for efficiency.
             start_message, end_message = await asyncio.gather(
                 channel.fetch_message(int(start_msg_id)),
                 channel.fetch_message(int(end_msg_id))
@@ -33,7 +33,6 @@ async def export_chat_range(token, channel_id, output_file, start_msg_id, end_ms
 
         messages = []
         try:
-            # Fetch messages between boundaries (exclusive) in ascending order.
             async for msg in channel.history(
                 after=start_message.created_at,
                 before=end_message.created_at,
@@ -46,12 +45,8 @@ async def export_chat_range(token, channel_id, output_file, start_msg_id, end_ms
             await client.close()
             return
 
-        # Manually include the boundary messages (inclusive)
         all_messages = [start_message] + messages + [end_message]
-        # First, sort messages by creation time (ascending)
         all_messages.sort(key=lambda m: m.created_at)
-        # Then reverse the sorted list. (raw_export internally reverses the list,
-        # so this workaround yields a transcript in ascending order.)
         all_messages = list(reversed(all_messages))
         
         try:
@@ -83,13 +78,13 @@ async def export_chat_range(token, channel_id, output_file, start_msg_id, end_ms
     await client.start(token)
 
 def main():
-    parser = argparse.ArgumentParser(description="Export a Discord channel transcript for a specific message range (inclusive)")
+    parser = argparse.ArgumentParser(description="Export a Discord channel transcript for a specific message range")
     parser.add_argument("--token", required=True, help="Discord bot token")
     parser.add_argument("--channel_id", type=int, required=True, help="Discord channel ID")
     parser.add_argument("--start", required=True, help="Start message ID (inclusive)")
     parser.add_argument("--end", required=True, help="End message ID (inclusive)")
     parser.add_argument("--output_file", required=True, help="Output file path")
-    parser.add_argument("--tz_info", type=str, default="UTC", help="Timezone info (default: UTC)")
+    parser.add_argument("--tz_info", type=str, default="UTC", help="Timezone info")
     parser.add_argument("--military_time", action="store_true", help="Use 24-hour time format")
     args = parser.parse_args()
     

@@ -50,7 +50,6 @@ async function checkTicketLimit(interaction: ButtonInteraction): Promise<boolean
     console.log(`User ${interaction.user.id} has ${openTickets.length} open tickets.`);
     if (openTickets.length >= 2) {
       try {
-        // We use followUp because the interaction is already deferred.
         await interaction.followUp({ 
           content: 'You already have 2 open tickets. Please continue in one of your existing ticket channels.',
           flags: 64
@@ -68,21 +67,19 @@ async function checkTicketLimit(interaction: ButtonInteraction): Promise<boolean
 }
 
 export const ButtonHandlerRegistry: { [key: string]: (interaction: ButtonInteraction, client: any) => Promise<void> } = {
-  // General ticket creation button
   'create_general': async (interaction, client) => {
   logger.info(`Handling create_general button`);
   try {
     if (await checkBlacklist(interaction)) return;
-    // Immediately check how many open tickets the user has.
     const openTickets = await prisma.ticket.findMany({ 
       where: { userId: interaction.user.id, status: 'open' } 
     });
     console.log(`User ${interaction.user.id} has ${openTickets.length} open tickets.`);
     if (openTickets.length >= 2) {
-      // If 2 or more tickets exist, reply with an error.
+      // If 2 or more tickets exist, deny.
       await interaction.reply({ 
         content: 'You already have 2 open tickets. Please continue in one of your existing ticket channels.',
-        flags: 64  // ephemeral flag
+        flags: 64  
       });
       return;
     }
@@ -145,7 +142,6 @@ export const ButtonHandlerRegistry: { [key: string]: (interaction: ButtonInterac
         title: 'Store Purchase', 
         description: "Once you're done selecting a product, please describe your payment method and any questions you have."
       };
-      // Instead of createTicketChannel, call the dispatcher:
       const ticketChannel = await createTicket(interaction, 'Store', data, false);
       await interaction.followUp({ 
         content: `Your ticket has been opened. Head over to <#${ticketChannel.id}> to continue.`,
@@ -272,7 +268,7 @@ export const ButtonHandlerRegistry: { [key: string]: (interaction: ButtonInterac
           instructions, 
           previewTitle, 
           useCustomInstructions: true,
-          allowCustomInstructions: true // Ensure allowed types are updated.
+          allowCustomInstructions: true 
         },
       });
       // Remove the cache entry upon successful update.
@@ -296,7 +292,6 @@ export const ButtonHandlerRegistry: { [key: string]: (interaction: ButtonInterac
   'cancel_instructions_': async (interaction: ButtonInteraction, client: Client) => {
     const ticketType = interaction.customId.replace('cancel_instructions_', '');
     const cacheKey = `${interaction.user.id}_${ticketType}`;
-    // Remove cached data since the update is cancelled.
     instructionsCache.delete(cacheKey);
     await interaction.update({
       content: `Operation cancelled. Custom instructions for ${ticketType} tickets were not updated.`,

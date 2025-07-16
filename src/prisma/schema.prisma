@@ -1,4 +1,5 @@
 // prisma/schema.prisma
+// this is quite an important file, do not modify this unless you know what you're doing.
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")

@@ -60,7 +60,6 @@ export function startAutoCloseManager(client: Client) {
 
 async function closeTicketAuto(ticket: any, channel: TextChannel | ThreadChannel) {
   try {
-    // For TextChannels, update the parent category if available.
     const parentCategoryId = getCategoryId(ticket.ticketType, true);
     if (parentCategoryId && 'setParent' in channel && typeof channel.setParent === 'function') {
       await channel.setParent(parentCategoryId, { lockPermissions: false });

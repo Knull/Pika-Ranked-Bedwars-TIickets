@@ -59,6 +59,7 @@ export async function handlePartnershipModal(interaction: ModalSubmitInteraction
     Reason: ${reason}`);
   
   // Validate the invite link.
+  // update: if you're reading this there are better ways to do this, I will leave it up to you to figure them out. 
   let invite;
   try {
     invite = await interaction.client.fetchInvite(inviteLink, { withCounts: true } as any);
@@ -86,7 +87,7 @@ export async function handlePartnershipModal(interaction: ModalSubmitInteraction
     console.warn("Member count is 0; this may be because the bot is not in the target guild.");
   }
   console.log(`Fetched member count: ${memberCount}`);
-
+  // these were just experiments; I have not removed them because it doesn't hurt to try.
   let eligibilityText = '';
   if (memberCount < 500) {
     eligibilityText = 'Small server partnership';
@@ -98,6 +99,7 @@ export async function handlePartnershipModal(interaction: ModalSubmitInteraction
   console.log(`Eligibility determined: ${eligibilityText}`);
   
   // Fetch partnership instructions from TicketConfig.
+  // update: this is not hard-coded anymore. 
   const configEntry = await prisma.ticketConfig.findUnique({ where: { ticketType: "Partnership" } });
   const partnershipInstructions = configEntry && configEntry.useCustomInstructions && configEntry.instructions
     ? configEntry.instructions
@@ -113,10 +115,9 @@ Server must be Minecraft related (exceptions can be made, e.g., for performance 
 4. A simple partnership with no pings for servers of any member count will cost $10 USD.
 \`\`\``;
   
-  // Prepare ticket data for the partnership ticket.
   const ticketData = {
     title: 'Partnership Ticket',
-    description: `${reason}`  // The main embed will use the user-provided description.
+    description: `${reason}`  // User input for the modal.
   };
   
   let ticketChannel;
@@ -137,7 +138,6 @@ Server must be Minecraft related (exceptions can be made, e.g., for performance 
     return;
   }
   
-  // Send a plain-text message with the invite link.
   try {
     await ticketChannel.send(`Server Invite: ${inviteLink}`);
     console.log("Sent invite link message to ticket channel.");

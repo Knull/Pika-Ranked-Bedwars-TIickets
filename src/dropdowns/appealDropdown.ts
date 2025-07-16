@@ -42,13 +42,10 @@ export async function showInitialAppealDropdown(
     .setTitle('Appeal Ticket')
     .setDescription('Choose the punishment type you want to appeal.');
 
-  // If we used deferReply earlier, we must now use editReply
-  // otherwise we can do a normal reply
   if (useEditReply) {
     await interaction.editReply({
       embeds: [embed],
       components: [row],
-      // ephemeral is already set from the flags
     });
   } else {
     await interaction.reply({

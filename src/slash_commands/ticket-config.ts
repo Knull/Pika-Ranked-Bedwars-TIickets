@@ -31,13 +31,11 @@ const data = new SlashCommandBuilder()
   );
 
 async function execute(interaction: ChatInputCommandInteraction) {
-  // First, check for admin role without deferring.
   const member = interaction.member;
   if (!member) {
     await interaction.reply({ content: 'Member not found.', ephemeral: true });
     return;
   }
-  // roles might be a GuildMemberRoleManager or string[]
   const roles = member.roles;
   if (!('cache' in roles)) {
     await interaction.reply({ content: `Only <@&${config.adminRoleId}> can use this command.`, ephemeral: true });
